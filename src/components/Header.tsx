@@ -1,10 +1,25 @@
 
 import React from 'react';
-import { Bell, Calendar, Settings, User } from 'lucide-react';
+import { Bell, Calendar, LogOut, Settings, User } from 'lucide-react';
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useAuth } from '@/contexts/AuthContext';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 const Header: React.FC = () => {
+  const { user, logout } = useAuth();
+  
+  // Get user initials for avatar
+  const getInitials = () => {
+    if (!user?.name) return 'U';
+    return user.name
+      .split(' ')
+      .map(part => part[0])
+      .join('')
+      .toUpperCase()
+      .substring(0, 2);
+  };
+
   return (
     <header className="w-full py-4 px-6 flex items-center justify-between bg-background/80 backdrop-blur-md sticky top-0 z-10 border-b">
       <div className="flex items-center">
@@ -29,10 +44,20 @@ const Header: React.FC = () => {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-full">
-              <User className="h-5 w-5" />
+              <Avatar className="h-8 w-8 bg-primary text-primary-foreground">
+                <AvatarFallback>{getInitials()}</AvatarFallback>
+              </Avatar>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuLabel>My Account</DropdownMenuLabel>
+            {user && (
+              <div className="px-2 py-1.5">
+                <p className="text-sm font-medium">{user.name}</p>
+                <p className="text-xs text-muted-foreground">{user.email}</p>
+              </div>
+            )}
+            <DropdownMenuSeparator />
             <DropdownMenuItem>
               <User className="mr-2 h-4 w-4" />
               <span>Profile</span>
@@ -40,6 +65,11 @@ const Header: React.FC = () => {
             <DropdownMenuItem>
               <Settings className="mr-2 h-4 w-4" />
               <span>Settings</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={logout}>
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Logout</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
