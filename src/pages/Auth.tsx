@@ -6,79 +6,91 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/components/ui/sonner';
-import { UserCheck, UserPlus } from 'lucide-react';
+import { UserCheck, UserPlus, Eye, EyeOff, Mail } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 const Auth: React.FC = () => {
   const navigate = useNavigate();
+  const { login, signup } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   
   // Login form state
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
   
   // Signup form state
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [signupName, setSignupName] = useState('');
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      await login(loginEmail, loginPassword);
       
-      // Demo login success - in real app, this would validate against a backend
       toast.success("Login successful", {
         description: "Welcome back to AI Study Planner!",
       });
       
-      // Store user info in localStorage for demo purposes
-      localStorage.setItem('user', JSON.stringify({ email: loginEmail, name: 'Demo User' }));
-      
       navigate('/');
-    }, 1500);
+    } catch (error) {
+      toast.error("Login failed", {
+        description: "Invalid email or password. Please try again.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleSignup = (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      await signup(signupName, signupEmail, signupPassword);
       
-      // Demo signup success
+      // Set email sent flag to show confirmation message
+      setEmailSent(true);
+      
       toast.success("Account created successfully", {
-        description: "Welcome to AI Study Planner!",
+        description: "Please check your email for confirmation.",
       });
-      
-      // Store user info
-      localStorage.setItem('user', JSON.stringify({ email: signupEmail, name: signupName }));
-      
-      navigate('/');
-    }, 1500);
+    } catch (error) {
+      toast.error("Signup failed", {
+        description: "Unable to create account. Please try again.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const demoLogin = () => {
+  const demoLogin = async () => {
     setIsLoading(true);
     
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      await login('demo@example.com', 'password');
+      
       toast.success("Demo login successful", {
         description: "You're using the demo account",
       });
       
-      localStorage.setItem('user', JSON.stringify({ 
-        email: 'demo@example.com', 
-        name: 'Demo User',
-        isDemoAccount: true
-      }));
-      
       navigate('/');
-    }, 800);
+    } catch (error) {
+      toast.error("Demo login failed", {
+        description: "Unable to access demo account",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  const toggleLoginPasswordVisibility = () => setShowLoginPassword(prev => !prev);
+  const toggleSignupPasswordVisibility = () => setShowSignupPassword(prev => !prev);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/50 p-4">
@@ -118,14 +130,25 @@ const Auth: React.FC = () => {
                       <label className="text-sm font-medium" htmlFor="password">Password</label>
                       <a href="#" className="text-sm text-primary hover:underline">Forgot password?</a>
                     </div>
-                    <Input 
-                      id="password" 
-                      type="password" 
-                      placeholder="••••••••" 
-                      value={loginPassword}
-                      onChange={(e) => setLoginPassword(e.target.value)}
-                      required
-                    />
+                    <div className="relative">
+                      <Input 
+                        id="password" 
+                        type={showLoginPassword ? "text" : "password"}
+                        placeholder="••••••••" 
+                        value={loginPassword}
+                        onChange={(e) => setLoginPassword(e.target.value)}
+                        required
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-0 top-0 h-full px-3"
+                        onClick={toggleLoginPasswordVisibility}
+                      >
+                        {showLoginPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
                 <CardFooter className="flex flex-col space-y-2">
@@ -151,56 +174,85 @@ const Auth: React.FC = () => {
             </TabsContent>
             
             <TabsContent value="signup">
-              <form onSubmit={handleSignup}>
-                <CardHeader>
-                  <CardTitle>Create an Account</CardTitle>
-                  <CardDescription>Enter your details to create a new account</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium" htmlFor="name">Full Name</label>
-                    <Input 
-                      id="name" 
-                      placeholder="John Doe" 
-                      value={signupName}
-                      onChange={(e) => setSignupName(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium" htmlFor="signup-email">Email</label>
-                    <Input 
-                      id="signup-email" 
-                      type="email" 
-                      placeholder="your@email.com" 
-                      value={signupEmail}
-                      onChange={(e) => setSignupEmail(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium" htmlFor="signup-password">Password</label>
-                    <Input 
-                      id="signup-password" 
-                      type="password" 
-                      placeholder="••••••••" 
-                      value={signupPassword}
-                      onChange={(e) => setSignupPassword(e.target.value)}
-                      required
-                    />
-                  </div>
-                </CardContent>
-                <CardFooter>
+              {emailSent ? (
+                <div className="p-6 text-center">
+                  <Mail className="mx-auto h-12 w-12 text-primary mb-4" />
+                  <CardTitle className="mb-2">Check your email!</CardTitle>
+                  <CardDescription className="mb-6">
+                    We've sent a confirmation email to <strong>{signupEmail}</strong>. 
+                    Please check your inbox and confirm your email address to continue.
+                  </CardDescription>
                   <Button 
-                    type="submit" 
-                    className="w-full" 
-                    disabled={isLoading}
+                    variant="outline" 
+                    className="w-full"
+                    onClick={() => setEmailSent(false)}
                   >
-                    <UserPlus className="mr-2 h-4 w-4" />
-                    {isLoading ? 'Creating Account...' : 'Sign Up'}
+                    Back to signup
                   </Button>
-                </CardFooter>
-              </form>
+                </div>
+              ) : (
+                <form onSubmit={handleSignup}>
+                  <CardHeader>
+                    <CardTitle>Create an Account</CardTitle>
+                    <CardDescription>Enter your details to create a new account</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" htmlFor="name">Full Name</label>
+                      <Input 
+                        id="name" 
+                        placeholder="John Doe" 
+                        value={signupName}
+                        onChange={(e) => setSignupName(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" htmlFor="signup-email">Email</label>
+                      <Input 
+                        id="signup-email" 
+                        type="email" 
+                        placeholder="your@email.com" 
+                        value={signupEmail}
+                        onChange={(e) => setSignupEmail(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" htmlFor="signup-password">Password</label>
+                      <div className="relative">
+                        <Input 
+                          id="signup-password" 
+                          type={showSignupPassword ? "text" : "password"}
+                          placeholder="••••••••" 
+                          value={signupPassword}
+                          onChange={(e) => setSignupPassword(e.target.value)}
+                          required
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-0 top-0 h-full px-3"
+                          onClick={toggleSignupPasswordVisibility}
+                        >
+                          {showSignupPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                  <CardFooter>
+                    <Button 
+                      type="submit" 
+                      className="w-full" 
+                      disabled={isLoading}
+                    >
+                      <UserPlus className="mr-2 h-4 w-4" />
+                      {isLoading ? 'Creating Account...' : 'Sign Up'}
+                    </Button>
+                  </CardFooter>
+                </form>
+              )}
             </TabsContent>
           </Tabs>
         </Card>

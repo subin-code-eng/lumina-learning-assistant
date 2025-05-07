@@ -6,6 +6,7 @@ interface User {
   email: string;
   name: string;
   isDemoAccount?: boolean;
+  emailVerified?: boolean;
 }
 
 interface AuthContextType {
@@ -38,13 +39,29 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setIsLoading(true);
     
     // Simulate API call - In a real app, this would validate against a backend
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       setTimeout(() => {
-        const newUser = { email, name: email.split('@')[0] };
-        localStorage.setItem('user', JSON.stringify(newUser));
-        setUser(newUser);
-        setIsLoading(false);
-        resolve();
+        try {
+          // Simple validation - in a real app, this would be done by the backend
+          if (email === 'demo@example.com' || (email.includes('@') && password.length >= 6)) {
+            const isDemoAccount = email === 'demo@example.com';
+            const newUser = { 
+              email, 
+              name: isDemoAccount ? 'Demo User' : email.split('@')[0],
+              isDemoAccount,
+              emailVerified: isDemoAccount || Math.random() > 0.5 // Randomly simulate verified/unverified for non-demo
+            };
+            localStorage.setItem('user', JSON.stringify(newUser));
+            setUser(newUser);
+            resolve();
+          } else {
+            reject(new Error('Invalid credentials'));
+          }
+        } catch (error) {
+          reject(error);
+        } finally {
+          setIsLoading(false);
+        }
       }, 1000);
     });
   };
@@ -54,13 +71,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setIsLoading(true);
     
     // Simulate API call - In a real app, this would create a user in the backend
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       setTimeout(() => {
-        const newUser = { email, name };
-        localStorage.setItem('user', JSON.stringify(newUser));
-        setUser(newUser);
-        setIsLoading(false);
-        resolve();
+        try {
+          // In a real app, this would be handled by the backend
+          const newUser = { 
+            email, 
+            name,
+            emailVerified: false // New accounts start as unverified
+          };
+          
+          // In a real app, we wouldn't set the user here until they verify their email
+          // For demo purposes, we'll store it but not log them in automatically
+          localStorage.setItem('pendingUser', JSON.stringify(newUser));
+          resolve();
+        } catch (error) {
+          reject(error);
+        } finally {
+          setIsLoading(false);
+        }
       }, 1000);
     });
   };
