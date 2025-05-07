@@ -170,7 +170,7 @@ const Auth: React.FC = () => {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {loginError && loginError.includes('verify') && (
-                    <Alert variant="warning" className="bg-amber-50 border-amber-200">
+                    <Alert variant="default" className="bg-amber-50 border-amber-200">
                       <AlertDescription className="flex justify-between items-center">
                         <span>Please verify your email before logging in.</span>
                         <Button 
