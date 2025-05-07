@@ -10,6 +10,9 @@ import UpcomingExams from '@/components/UpcomingExams';
 import AIInsights from '@/components/AIInsights';
 import AITutor from '@/components/AITutor';
 import Gamification from '@/components/Gamification';
+import QuizGenerator from '@/components/QuizGenerator';
+import Profile from '@/components/Profile';
+import Settings from '@/components/Settings';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -33,12 +36,13 @@ const Index = () => {
         {/* Main Tabs Navigation */}
         <div className="mb-8">
           <Tabs defaultValue="dashboard" value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-3 md:grid-cols-5 lg:w-auto lg:inline-grid">
+            <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 lg:w-auto lg:inline-grid">
               <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
               <TabsTrigger value="study">Study Planner</TabsTrigger>
               <TabsTrigger value="progress">Progress</TabsTrigger>
               <TabsTrigger value="ai">AI Tutor</TabsTrigger>
-              <TabsTrigger value="achievements">Achievements</TabsTrigger>
+              <TabsTrigger value="quiz">Quiz</TabsTrigger>
+              <TabsTrigger value="profile">Profile</TabsTrigger>
             </TabsList>
             
             <TabsContent value="dashboard" className="mt-6">
@@ -78,6 +82,11 @@ const Index = () => {
                 
                 {/* AI Insights */}
                 <AIInsights />
+                
+                {/* Gamification */}
+                <div className="md:col-span-2 mt-6">
+                  <Gamification />
+                </div>
               </div>
             </TabsContent>
             
@@ -94,9 +103,23 @@ const Index = () => {
               </div>
             </TabsContent>
             
-            <TabsContent value="achievements" className="mt-6">
-              {/* Gamification */}
-              <Gamification />
+            <TabsContent value="quiz" className="mt-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="md:col-span-2">
+                  {/* Quiz Generator */}
+                  <QuizGenerator />
+                </div>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="profile" className="mt-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* User Profile */}
+                <Profile />
+                
+                {/* Settings */}
+                <Settings />
+              </div>
             </TabsContent>
           </Tabs>
         </div>

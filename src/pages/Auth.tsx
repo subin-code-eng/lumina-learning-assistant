@@ -6,18 +6,21 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/components/ui/sonner';
-import { UserCheck, UserPlus, Eye, EyeOff, Mail } from 'lucide-react';
+import { UserCheck, UserPlus, Eye, EyeOff, Mail, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const Auth: React.FC = () => {
   const navigate = useNavigate();
-  const { login, signup } = useAuth();
+  const { login, signup, resendVerification } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [resendingVerification, setResendingVerification] = useState(false);
   
   // Login form state
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
   
   // Signup form state
   const [signupEmail, setSignupEmail] = useState('');
@@ -29,6 +32,7 @@ const Auth: React.FC = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setLoginError(null);
     
     try {
       await login(loginEmail, loginPassword);
@@ -39,9 +43,24 @@ const Auth: React.FC = () => {
       
       navigate('/');
     } catch (error) {
-      toast.error("Login failed", {
-        description: "Invalid email or password. Please try again.",
-      });
+      if (error instanceof Error) {
+        setLoginError(error.message);
+        
+        // Check if it's a verification error
+        if (error.message.includes('verify')) {
+          toast.error("Email not verified", {
+            description: "Please check your inbox for verification email or request a new one.",
+          });
+        } else {
+          toast.error("Login failed", {
+            description: error.message || "Invalid email or password. Please try again.",
+          });
+        }
+      } else {
+        toast.error("Login failed", {
+          description: "An unexpected error occurred. Please try again.",
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -61,11 +80,47 @@ const Auth: React.FC = () => {
         description: "Please check your email for confirmation.",
       });
     } catch (error) {
-      toast.error("Signup failed", {
-        description: "Unable to create account. Please try again.",
-      });
+      if (error instanceof Error) {
+        toast.error("Signup failed", {
+          description: error.message || "Unable to create account. Please try again.",
+        });
+      } else {
+        toast.error("Signup failed", {
+          description: "An unexpected error occurred. Please try again.",
+        });
+      }
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    if (!loginEmail) {
+      toast.error("Email required", {
+        description: "Please enter your email address to resend verification",
+      });
+      return;
+    }
+    
+    setResendingVerification(true);
+    
+    try {
+      await resendVerification(loginEmail);
+      toast.success("Verification email sent", {
+        description: "Please check your inbox for the verification link",
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        toast.error("Failed to resend verification", {
+          description: error.message,
+        });
+      } else {
+        toast.error("Failed to resend verification", {
+          description: "An unexpected error occurred",
+        });
+      }
+    } finally {
+      setResendingVerification(false);
     }
   };
 
@@ -114,6 +169,26 @@ const Auth: React.FC = () => {
                   <CardDescription>Enter your credentials to access your account</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {loginError && loginError.includes('verify') && (
+                    <Alert variant="warning" className="bg-amber-50 border-amber-200">
+                      <AlertDescription className="flex justify-between items-center">
+                        <span>Please verify your email before logging in.</span>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={handleResendVerification}
+                          disabled={resendingVerification}
+                          className="ml-2 bg-amber-50"
+                        >
+                          {resendingVerification ? (
+                            <RefreshCw className="h-4 w-4 animate-spin mr-1" />
+                          ) : null}
+                          Resend
+                        </Button>
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  
                   <div className="space-y-2">
                     <label className="text-sm font-medium" htmlFor="email">Email</label>
                     <Input 
@@ -228,6 +303,7 @@ const Auth: React.FC = () => {
                           value={signupPassword}
                           onChange={(e) => setSignupPassword(e.target.value)}
                           required
+                          minLength={6}
                         />
                         <Button
                           type="button"
@@ -239,6 +315,9 @@ const Auth: React.FC = () => {
                           {showSignupPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </Button>
                       </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Password must be at least 6 characters
+                      </p>
                     </div>
                   </CardContent>
                   <CardFooter>

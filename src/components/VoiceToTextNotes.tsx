@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -10,7 +10,10 @@ const VoiceToTextNotes: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [notes, setNotes] = useState('');
   const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
-
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const [tempTranscript, setTempTranscript] = useState('');
+  const processingRef = useRef(false);
+  
   useEffect(() => {
     // Initialize speech recognition if browser supports it
     const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -22,11 +25,50 @@ const VoiceToTextNotes: React.FC = () => {
       recognitionInstance.interimResults = true;
       
       recognitionInstance.onresult = (event: SpeechRecognitionEvent) => {
+        // Only process if we're not already processing a result
+        if (processingRef.current) return;
+        
+        processingRef.current = true;
+        
         let transcript = '';
+        let finalTranscript = '';
+        let interimTranscript = '';
+        
+        // Process results
         for (let i = event.resultIndex; i < event.results.length; i++) {
-          transcript += event.results[i][0].transcript;
+          const result = event.results[i];
+          transcript = result[0].transcript;
+          
+          // If this is a final result, append to final transcript
+          if (result.isFinal) {
+            finalTranscript += ' ' + transcript;
+          } else {
+            interimTranscript += transcript;
+          }
         }
-        setNotes((prev) => prev + ' ' + transcript);
+        
+        // Update the notes with final transcript
+        if (finalTranscript) {
+          setNotes((prev) => prev + finalTranscript);
+          setTempTranscript('');
+        } else {
+          // Show interim results in temp transcript
+          setTempTranscript(interimTranscript);
+        }
+        
+        processingRef.current = false;
+      };
+      
+      recognitionInstance.onend = () => {
+        // If we're still supposed to be recording but recognition ended, restart it
+        if (isRecording) {
+          try {
+            recognitionInstance.start();
+          } catch (error) {
+            console.error('Error restarting recording:', error);
+            setIsRecording(false);
+          }
+        }
       };
       
       recognitionInstance.onerror = (event) => {
@@ -38,7 +80,19 @@ const VoiceToTextNotes: React.FC = () => {
       };
       
       setRecognition(recognitionInstance);
+      recognitionRef.current = recognitionInstance;
     }
+    
+    // Cleanup function
+    return () => {
+      if (recognitionRef.current && isRecording) {
+        try {
+          recognitionRef.current.stop();
+        } catch (error) {
+          console.error('Error stopping recognition during cleanup:', error);
+        }
+      }
+    };
   }, []);
 
   const toggleRecording = () => {
@@ -50,10 +104,20 @@ const VoiceToTextNotes: React.FC = () => {
     }
     
     if (isRecording) {
-      recognition.stop();
-      setIsRecording(false);
+      try {
+        recognition.stop();
+        setIsRecording(false);
+        setTempTranscript('');
+        processingRef.current = false;
+      } catch (error) {
+        console.error('Error stopping recording:', error);
+      }
     } else {
       try {
+        // Clear any previous state
+        processingRef.current = false;
+        setTempTranscript('');
+        
         recognition.start();
         setIsRecording(true);
       } catch (error) {
@@ -64,6 +128,9 @@ const VoiceToTextNotes: React.FC = () => {
 
   const saveNotes = () => {
     if (notes.trim()) {
+      // In a real app, you'd save this to a database
+      localStorage.setItem('voiceNotes', notes);
+      
       toast("Notes saved", {
         description: "Your voice notes have been saved successfully"
       });
@@ -80,7 +147,7 @@ const VoiceToTextNotes: React.FC = () => {
       </CardHeader>
       <CardContent>
         <Textarea 
-          value={notes} 
+          value={notes + (tempTranscript ? ' ' + tempTranscript : '')}
           onChange={(e) => setNotes(e.target.value)}
           placeholder="Your voice notes will appear here..."
           className="min-h-[200px]"
