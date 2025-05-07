@@ -9,26 +9,27 @@ import { toast } from '@/components/ui/sonner';
 const VoiceToTextNotes: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [notes, setNotes] = useState('');
-  const [recognition, setRecognition] = useState<any>(null);
+  const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
 
   useEffect(() => {
     // Initialize speech recognition if browser supports it
-    if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      const recognitionInstance = new SpeechRecognition();
+    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+    
+    if (SpeechRecognitionAPI) {
+      const recognitionInstance = new SpeechRecognitionAPI();
       
       recognitionInstance.continuous = true;
       recognitionInstance.interimResults = true;
       
-      recognitionInstance.onresult = (event: any) => {
+      recognitionInstance.onresult = (event: SpeechRecognitionEvent) => {
         let transcript = '';
-        for (let i = 0; i < event.results.length; i++) {
+        for (let i = event.resultIndex; i < event.results.length; i++) {
           transcript += event.results[i][0].transcript;
         }
         setNotes((prev) => prev + ' ' + transcript);
       };
       
-      recognitionInstance.onerror = (event: any) => {
+      recognitionInstance.onerror = (event) => {
         console.error('Speech recognition error', event);
         setIsRecording(false);
         toast("Error recording", {
