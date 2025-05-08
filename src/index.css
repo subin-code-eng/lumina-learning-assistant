@@ -29,6 +29,12 @@
     --input: 214 32% 91%;
     --ring: 222 47% 11%;
 
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
     --radius: 0.75rem;
   }
 
@@ -92,3 +98,14 @@
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
+
+/* Dark mode friendly focus rings */
+.dark *:focus-visible {
+  outline-color: hsl(var(--ring));
+}
+
+/* Improve contrast for certain elements in dark mode */
+.dark .text-muted-foreground {
+  color: hsl(215 20% 75%);
+}
+

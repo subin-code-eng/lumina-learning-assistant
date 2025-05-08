@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -5,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/components/ui/sonner';
-import { UserCheck, UserPlus, Eye, EyeOff, Mail, RefreshCw } from 'lucide-react';
+import { UserCheck, UserPlus, Eye, EyeOff, Mail, RefreshCw, Info } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -169,7 +170,7 @@ const Auth: React.FC = () => {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {loginError && loginError.includes('verify') && (
-                    <Alert variant="default" className="bg-amber-50 border-amber-200">
+                    <Alert variant="default" className="bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800">
                       <AlertDescription className="flex justify-between items-center">
                         <span>Please verify your email before logging in.</span>
                         <Button 
@@ -177,7 +178,7 @@ const Auth: React.FC = () => {
                           size="sm" 
                           onClick={handleResendVerification}
                           disabled={resendingVerification}
-                          className="ml-2 bg-amber-50"
+                          className="ml-2 bg-amber-50 dark:bg-amber-900/30"
                         >
                           {resendingVerification ? (
                             <RefreshCw className="h-4 w-4 animate-spin mr-1" />
@@ -256,13 +257,33 @@ const Auth: React.FC = () => {
                     We've sent a confirmation email to <strong>{signupEmail}</strong>. 
                     Please check your inbox and confirm your email address to continue.
                   </CardDescription>
-                  <Button 
-                    variant="outline" 
-                    className="w-full"
-                    onClick={() => setEmailSent(false)}
-                  >
-                    Back to signup
-                  </Button>
+                  <Alert className="mb-4 bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800">
+                    <Info className="h-4 w-4 mr-2" />
+                    <AlertDescription>
+                      In this demo application, no actual emails are sent. To verify your account, use the following URL:
+                      <code className="block mt-2 p-2 bg-background rounded border">
+                        {window.location.origin}/verify-email?token=[your-verification-token]
+                      </code>
+                      <span className="block mt-2 text-xs">
+                        For demonstration purposes, you can login with the demo account.
+                      </span>
+                    </AlertDescription>
+                  </Alert>
+                  <div className="flex flex-col space-y-2">
+                    <Button 
+                      variant="outline" 
+                      className="w-full"
+                      onClick={() => setEmailSent(false)}
+                    >
+                      Back to signup
+                    </Button>
+                    <Button 
+                      className="w-full"
+                      onClick={demoLogin}
+                    >
+                      Try Demo Account
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <form onSubmit={handleSignup}>
@@ -318,8 +339,14 @@ const Auth: React.FC = () => {
                         Password must be at least 6 characters
                       </p>
                     </div>
+                    <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800">
+                      <Info className="h-4 w-4 mr-2" />
+                      <AlertDescription>
+                        This is a demo app with mock authentication. No real emails will be sent.
+                      </AlertDescription>
+                    </Alert>
                   </CardContent>
-                  <CardFooter>
+                  <CardFooter className="flex flex-col space-y-2">
                     <Button 
                       type="submit" 
                       className="w-full" 
@@ -327,6 +354,14 @@ const Auth: React.FC = () => {
                     >
                       <UserPlus className="mr-2 h-4 w-4" />
                       {isLoading ? 'Creating Account...' : 'Sign Up'}
+                    </Button>
+                    <Button 
+                      type="button"
+                      variant="outline" 
+                      className="w-full" 
+                      onClick={demoLogin}
+                    >
+                      Try Demo Account
                     </Button>
                   </CardFooter>
                 </form>

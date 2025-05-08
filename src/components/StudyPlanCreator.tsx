@@ -6,12 +6,24 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/components/ui/sonner';
+import { Calendar, Clock, BookOpen, RefreshCw } from 'lucide-react';
 
 const StudyPlanCreator: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('Intermediate');
+  const [subject, setSubject] = useState('');
+  const [goals, setGoals] = useState('');
+  const [timePreference, setTimePreference] = useState('morning');
+  const [duration, setDuration] = useState('2weeks');
 
   const handleCreatePlan = () => {
+    if (!subject.trim()) {
+      toast.error("Subject required", {
+        description: "Please enter a subject for your study plan"
+      });
+      return;
+    }
+    
     setLoading(true);
     // Simulate AI processing
     setTimeout(() => {
@@ -25,7 +37,10 @@ const StudyPlanCreator: React.FC = () => {
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle className="text-xl font-semibold">Create AI Study Plan</CardTitle>
+        <CardTitle className="text-xl font-semibold flex items-center">
+          <BookOpen className="mr-2 h-5 w-5 text-primary" />
+          Create AI Study Plan
+        </CardTitle>
         <CardDescription>
           Let our AI create a personalized study plan based on your goals and schedule
         </CardDescription>
@@ -33,7 +48,12 @@ const StudyPlanCreator: React.FC = () => {
       <CardContent className="space-y-4">
         <div>
           <label className="text-sm font-medium" htmlFor="subject">Subject</label>
-          <Input id="subject" placeholder="E.g., Mathematics, History, Physics" />
+          <Input 
+            id="subject" 
+            placeholder="E.g., Mathematics, History, Physics" 
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+          />
         </div>
         
         <div>
@@ -42,13 +62,21 @@ const StudyPlanCreator: React.FC = () => {
             id="goals" 
             placeholder="What do you want to achieve? E.g., Master calculus concepts for final exam"
             className="min-h-[100px]"
+            value={goals}
+            onChange={(e) => setGoals(e.target.value)}
           />
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="text-sm font-medium">Study time preference</label>
-            <Select defaultValue="morning">
+            <label className="text-sm font-medium flex items-center">
+              <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
+              Study time preference
+            </label>
+            <Select 
+              value={timePreference}
+              onValueChange={setTimePreference}
+            >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Select time" />
               </SelectTrigger>
@@ -62,8 +90,14 @@ const StudyPlanCreator: React.FC = () => {
           </div>
           
           <div>
-            <label className="text-sm font-medium">Duration</label>
-            <Select defaultValue="2weeks">
+            <label className="text-sm font-medium flex items-center">
+              <Calendar className="mr-2 h-4 w-4 text-muted-foreground" />
+              Duration
+            </label>
+            <Select 
+              value={duration}
+              onValueChange={setDuration}
+            >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Select duration" />
               </SelectTrigger>
@@ -85,7 +119,7 @@ const StudyPlanCreator: React.FC = () => {
                 key={level} 
                 variant={selectedDifficulty === level ? "default" : "outline"}
                 size="sm"
-                className="flex-1"
+                className={`flex-1 ${selectedDifficulty === level ? "" : "dark:text-foreground dark:hover:text-foreground"}`}
                 onClick={() => setSelectedDifficulty(level)}
               >
                 {level}
@@ -100,7 +134,14 @@ const StudyPlanCreator: React.FC = () => {
           onClick={handleCreatePlan}
           disabled={loading}
         >
-          {loading ? 'Creating your plan...' : 'Generate AI Study Plan'}
+          {loading ? (
+            <>
+              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+              Creating your plan...
+            </>
+          ) : (
+            'Generate AI Study Plan'
+          )}
         </Button>
       </CardFooter>
     </Card>

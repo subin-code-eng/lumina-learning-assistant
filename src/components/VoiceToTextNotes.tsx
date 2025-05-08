@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
-import { Mic, MicOff, Save } from 'lucide-react';
+import { Mic, MicOff, Save, RefreshCw } from 'lucide-react';
 import { toast } from '@/components/ui/sonner';
 
 const VoiceToTextNotes: React.FC = () => {
@@ -13,6 +13,15 @@ const VoiceToTextNotes: React.FC = () => {
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const [tempTranscript, setTempTranscript] = useState('');
   const processingRef = useRef(false);
+  const [isSaving, setIsSaving] = useState(false);
+  
+  // Load saved notes on component mount
+  useEffect(() => {
+    const savedNotes = localStorage.getItem('voiceNotes');
+    if (savedNotes) {
+      setNotes(savedNotes);
+    }
+  }, []);
   
   useEffect(() => {
     // Initialize speech recognition if browser supports it
@@ -128,11 +137,28 @@ const VoiceToTextNotes: React.FC = () => {
 
   const saveNotes = () => {
     if (notes.trim()) {
-      // In a real app, you'd save this to a database
-      localStorage.setItem('voiceNotes', notes);
+      setIsSaving(true);
       
-      toast("Notes saved", {
-        description: "Your voice notes have been saved successfully"
+      // Simulate saving delay for better UX
+      setTimeout(() => {
+        // In a real app, you'd save this to a database
+        localStorage.setItem('voiceNotes', notes);
+        
+        toast("Notes saved", {
+          description: "Your voice notes have been saved successfully"
+        });
+        
+        setIsSaving(false);
+      }, 500);
+    }
+  };
+
+  const clearNotes = () => {
+    if (window.confirm('Are you sure you want to clear all notes?')) {
+      setNotes('');
+      localStorage.removeItem('voiceNotes');
+      toast("Notes cleared", {
+        description: "All voice notes have been cleared"
       });
     }
   };
@@ -163,17 +189,34 @@ const VoiceToTextNotes: React.FC = () => {
         </div>
       </CardContent>
       <CardFooter className="flex justify-between">
-        <Button 
-          variant={isRecording ? "destructive" : "outline"} 
-          onClick={toggleRecording}
-        >
-          {isRecording ? <MicOff className="mr-2 h-4 w-4" /> : <Mic className="mr-2 h-4 w-4" />}
-          {isRecording ? "Stop Recording" : "Start Recording"}
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant={isRecording ? "destructive" : "outline"} 
+            onClick={toggleRecording}
+          >
+            {isRecording ? <MicOff className="mr-2 h-4 w-4" /> : <Mic className="mr-2 h-4 w-4" />}
+            {isRecording ? "Stop Recording" : "Start Recording"}
+          </Button>
+          
+          {notes.trim() && (
+            <Button variant="outline" onClick={clearNotes}>
+              Clear All
+            </Button>
+          )}
+        </div>
         
-        <Button onClick={saveNotes} disabled={!notes.trim()}>
-          <Save className="mr-2 h-4 w-4" />
-          Save Notes
+        <Button onClick={saveNotes} disabled={!notes.trim() || isSaving}>
+          {isSaving ? (
+            <>
+              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save className="mr-2 h-4 w-4" />
+              Save Notes
+            </>
+          )}
         </Button>
       </CardFooter>
     </Card>
