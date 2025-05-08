@@ -1,5 +1,6 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Header from '@/components/Header';
 import DashboardSummary from '@/components/DashboardSummary';
 import TodaysTasks from '@/components/TodaysTasks';
@@ -17,8 +18,30 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from '@/contexts/AuthContext';
 
 const Index = () => {
-  const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const { user, profile } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState(tabParam || "dashboard");
+
+  // Update the URL when tab changes
+  useEffect(() => {
+    if (tabParam !== activeTab) {
+      if (activeTab === "dashboard") {
+        // Remove tab parameter for the default tab
+        searchParams.delete('tab');
+        setSearchParams(searchParams);
+      } else {
+        setSearchParams({ tab: activeTab });
+      }
+    }
+  }, [activeTab, tabParam, searchParams, setSearchParams]);
+
+  // Set the active tab from URL parameter if present
+  useEffect(() => {
+    if (tabParam && ["dashboard", "study", "progress", "ai", "quiz", "profile", "settings"].includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted/50">
@@ -27,7 +50,7 @@ const Index = () => {
       <main className="container mx-auto px-4 py-6 max-w-7xl">
         {/* Welcome Message */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold tracking-tight">Welcome back, {user?.name || 'Student'}</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Welcome back, {profile?.full_name || user?.email?.split('@')[0] || 'Student'}</h1>
           <p className="text-muted-foreground mt-1">
             Let's make today's study session productive. Here's your personalized dashboard.
           </p>
@@ -35,7 +58,10 @@ const Index = () => {
         
         {/* Main Tabs Navigation */}
         <div className="mb-8">
-          <Tabs defaultValue="dashboard" value={activeTab} onValueChange={setActiveTab}>
+          <Tabs 
+            value={activeTab} 
+            onValueChange={setActiveTab}
+          >
             <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 lg:w-auto lg:inline-grid">
               <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
               <TabsTrigger value="study">Study Planner</TabsTrigger>

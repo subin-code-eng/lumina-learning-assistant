@@ -7,16 +7,35 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/components/ui/sonner';
 import { Calendar, Clock, BookOpen, RefreshCw } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 const StudyPlanCreator: React.FC = () => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('Intermediate');
   const [subject, setSubject] = useState('');
   const [goals, setGoals] = useState('');
   const [timePreference, setTimePreference] = useState('morning');
-  const [duration, setDuration] = useState('2weeks');
+  const [duration, setDuration] = useState('14');
+  
+  // Map duration selections to days
+  const durationMap: Record<string, string> = {
+    '7': '1 week',
+    '14': '2 weeks',
+    '30': '1 month',
+    '60': '2 months',
+    '90': '3 months'
+  };
 
-  const handleCreatePlan = () => {
+  const handleCreatePlan = async () => {
+    if (!user) {
+      toast.error("Authentication required", {
+        description: "Please login to create a study plan"
+      });
+      return;
+    }
+    
     if (!subject.trim()) {
       toast.error("Subject required", {
         description: "Please enter a subject for your study plan"
@@ -25,13 +44,43 @@ const StudyPlanCreator: React.FC = () => {
     }
     
     setLoading(true);
-    // Simulate AI processing
-    setTimeout(() => {
-      setLoading(false);
+    
+    try {
+      // Save the study plan to Supabase
+      const { data, error } = await supabase
+        .from('study_plans')
+        .insert({
+          user_id: user.id,
+          title: `${subject} Study Plan`,
+          description: goals || `Study plan for ${subject}`,
+          subject: subject,
+          difficulty: selectedDifficulty,
+          duration_days: parseInt(duration)
+        })
+        .select();
+      
+      if (error) {
+        throw error;
+      }
+      
       toast.success("Study plan created", {
-        description: "Your personalized study plan has been created and added to your calendar"
+        description: "Your personalized study plan has been created"
       });
-    }, 2000);
+      
+      // Reset form
+      setSubject('');
+      setGoals('');
+      setSelectedDifficulty('Intermediate');
+      setTimePreference('morning');
+      setDuration('14');
+    } catch (error) {
+      console.error('Error creating study plan:', error);
+      toast.error("Failed to create study plan", {
+        description: "Please try again later"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -102,10 +151,11 @@ const StudyPlanCreator: React.FC = () => {
                 <SelectValue placeholder="Select duration" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="1week">1 week</SelectItem>
-                <SelectItem value="2weeks">2 weeks</SelectItem>
-                <SelectItem value="1month">1 month</SelectItem>
-                <SelectItem value="custom">Custom duration</SelectItem>
+                <SelectItem value="7">1 week</SelectItem>
+                <SelectItem value="14">2 weeks</SelectItem>
+                <SelectItem value="30">1 month</SelectItem>
+                <SelectItem value="60">2 months</SelectItem>
+                <SelectItem value="90">3 months</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -132,7 +182,7 @@ const StudyPlanCreator: React.FC = () => {
         <Button 
           className="w-full gradient-bg hover:opacity-90 transition-opacity"
           onClick={handleCreatePlan}
-          disabled={loading}
+          disabled={loading || !subject.trim()}
         >
           {loading ? (
             <>

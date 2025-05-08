@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,10 +9,11 @@ import { toast } from '@/components/ui/sonner';
 import { UserCheck, UserPlus, Eye, EyeOff, Mail, RefreshCw, Info } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { supabase } from '@/integrations/supabase/client';
 
 const Auth: React.FC = () => {
   const navigate = useNavigate();
-  const { login, signup, resendVerification } = useAuth();
+  const { login, signup, resendVerification, isAuthenticated } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [resendingVerification, setResendingVerification] = useState(false);
   
@@ -29,6 +30,13 @@ const Auth: React.FC = () => {
   const [showSignupPassword, setShowSignupPassword] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
 
+  // Redirect if already logged in
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/');
+    }
+  }, [isAuthenticated, navigate]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -36,33 +44,10 @@ const Auth: React.FC = () => {
     
     try {
       await login(loginEmail, loginPassword);
-      
-      toast.success("Login successful", {
-        description: "Welcome back to AI Study Planner!",
-      });
-      
-      navigate('/');
+      // Navigate happens in the login function after success
     } catch (error) {
-      if (error instanceof Error) {
-        setLoginError(error.message);
-        
-        // Check if it's a verification error
-        if (error.message.includes('verify')) {
-          toast.error("Email not verified", {
-            description: "Please check your inbox for verification email or request a new one.",
-          });
-        } else {
-          toast.error("Login failed", {
-            description: error.message || "Invalid email or password. Please try again.",
-          });
-        }
-      } else {
-        toast.error("Login failed", {
-          description: "An unexpected error occurred. Please try again.",
-        });
-      }
-    } finally {
       setIsLoading(false);
+      // Error toast is shown in the login function
     }
   };
 
@@ -72,23 +57,10 @@ const Auth: React.FC = () => {
     
     try {
       await signup(signupName, signupEmail, signupPassword);
-      
       // Set email sent flag to show confirmation message
       setEmailSent(true);
-      
-      toast.success("Account created successfully", {
-        description: "Please check your email for confirmation.",
-      });
     } catch (error) {
-      if (error instanceof Error) {
-        toast.error("Signup failed", {
-          description: error.message || "Unable to create account. Please try again.",
-        });
-      } else {
-        toast.error("Signup failed", {
-          description: "An unexpected error occurred. Please try again.",
-        });
-      }
+      // Error toast is shown in the signup function
     } finally {
       setIsLoading(false);
     }
@@ -106,19 +78,8 @@ const Auth: React.FC = () => {
     
     try {
       await resendVerification(loginEmail);
-      toast.success("Verification email sent", {
-        description: "Please check your inbox for the verification link",
-      });
     } catch (error) {
-      if (error instanceof Error) {
-        toast.error("Failed to resend verification", {
-          description: error.message,
-        });
-      } else {
-        toast.error("Failed to resend verification", {
-          description: "An unexpected error occurred",
-        });
-      }
+      // Error toast is shown in the resendVerification function
     } finally {
       setResendingVerification(false);
     }
@@ -128,16 +89,10 @@ const Auth: React.FC = () => {
     setIsLoading(true);
     
     try {
-      await login('demo@example.com', 'password');
-      
-      toast.success("Demo login successful", {
-        description: "You're using the demo account",
-      });
-      
-      navigate('/');
+      await login('demo@example.com', 'password123');
     } catch (error) {
       toast.error("Demo login failed", {
-        description: "Unable to access demo account",
+        description: "Unable to access demo account. Please create a new account instead.",
       });
     } finally {
       setIsLoading(false);
@@ -203,7 +158,34 @@ const Auth: React.FC = () => {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <label className="text-sm font-medium" htmlFor="password">Password</label>
-                      <a href="#" className="text-sm text-primary hover:underline">Forgot password?</a>
+                      <Button 
+                        variant="link" 
+                        size="sm" 
+                        className="p-0 h-auto text-sm"
+                        onClick={async () => {
+                          if (loginEmail) {
+                            try {
+                              const { error } = await supabase.auth.resetPasswordForEmail(loginEmail, {
+                                redirectTo: `${window.location.origin}/auth?reset=true`,
+                              });
+                              if (error) throw error;
+                              toast.success("Password reset email sent", {
+                                description: "Check your inbox for instructions"
+                              });
+                            } catch (error) {
+                              toast.error("Failed to send reset email", {
+                                description: "Please try again"
+                              });
+                            }
+                          } else {
+                            toast.error("Email required", {
+                              description: "Please enter your email first"
+                            });
+                          }
+                        }}
+                      >
+                        Forgot password?
+                      </Button>
                     </div>
                     <div className="relative">
                       <Input 
@@ -260,13 +242,7 @@ const Auth: React.FC = () => {
                   <Alert className="mb-4 bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800">
                     <Info className="h-4 w-4 mr-2" />
                     <AlertDescription>
-                      In this demo application, no actual emails are sent. To verify your account, use the following URL:
-                      <code className="block mt-2 p-2 bg-background rounded border">
-                        {window.location.origin}/verify-email?token=[your-verification-token]
-                      </code>
-                      <span className="block mt-2 text-xs">
-                        For demonstration purposes, you can login with the demo account.
-                      </span>
+                      Note: For development purposes, you may want to disable email verification in the Supabase dashboard.
                     </AlertDescription>
                   </Alert>
                   <div className="flex flex-col space-y-2">
@@ -342,7 +318,7 @@ const Auth: React.FC = () => {
                     <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800">
                       <Info className="h-4 w-4 mr-2" />
                       <AlertDescription>
-                        This is a demo app with mock authentication. No real emails will be sent.
+                        This app uses Supabase for authentication and data storage.
                       </AlertDescription>
                     </Alert>
                   </CardContent>

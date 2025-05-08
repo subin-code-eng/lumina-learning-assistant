@@ -2,20 +2,23 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/components/ui/sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { Session, User } from '@supabase/supabase-js';
 
-interface User {
-  email: string;
-  name: string;
-  isDemoAccount?: boolean;
-  emailVerified?: boolean;
+interface UserProfile {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
 }
 
 interface AuthContextType {
   user: User | null;
+  profile: UserProfile | null;
+  session: Session | null;
   login: (email: string, password: string) => Promise<void>;
   signup: (name: string, email: string, password: string) => Promise<void>;
-  logout: () => void;
-  updateProfile: (data: Partial<User>) => void;
+  logout: () => Promise<void>;
+  updateProfile: (data: Partial<UserProfile>) => Promise<void>;
   isAuthenticated: boolean;
   isLoading: boolean;
   verifyEmail: (token: string) => Promise<void>;
@@ -26,215 +29,235 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
-  // Check for existing user session
-  useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
+  // Fetch user profile data
+  const fetchProfile = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching profile:', error);
+      } else if (data) {
+        setProfile(data as UserProfile);
+      }
+    } catch (error) {
+      console.error('Error fetching profile:', error);
     }
-    setIsLoading(false);
+  };
+
+  // Initialize auth state
+  useEffect(() => {
+    // Set up auth state listener first
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, currentSession) => {
+        setSession(currentSession);
+        setUser(currentSession?.user ?? null);
+        
+        if (currentSession?.user) {
+          // Use setTimeout to prevent potential deadlocks in the auth state listener
+          setTimeout(() => {
+            fetchProfile(currentSession.user.id);
+          }, 0);
+        } else {
+          setProfile(null);
+        }
+      }
+    );
+    
+    // Then check for existing session
+    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+      setSession(currentSession);
+      setUser(currentSession?.user ?? null);
+      
+      if (currentSession?.user) {
+        fetchProfile(currentSession.user.id);
+      }
+      setIsLoading(false);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
-  // Login function with email verification check
+  // Login function
   const login = async (email: string, password: string): Promise<void> => {
     setIsLoading(true);
-    
-    // Simulate API call - In a real app, this would validate against a backend
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        try {
-          // Simple validation - in a real app, this would be done by the backend
-          const pendingUsers = JSON.parse(localStorage.getItem('pendingUsers') || '[]');
-          const storedUsers = JSON.parse(localStorage.getItem('users') || '[]');
-          const demoUser = { 
-            email: 'demo@example.com', 
-            name: 'Demo User',
-            isDemoAccount: true,
-            emailVerified: true
-          };
-          
-          // Check if it's the demo account
-          if (email === 'demo@example.com' && password === 'password') {
-            localStorage.setItem('user', JSON.stringify(demoUser));
-            setUser(demoUser);
-            resolve();
-            return;
-          }
-          
-          // Check if the user exists in verified users
-          const userFound = storedUsers.find((u: User) => u.email === email);
-          
-          if (userFound) {
-            if (!userFound.emailVerified) {
-              reject(new Error('Please verify your email before logging in'));
-              return;
-            }
-            
-            // In a real app, we would check the password hash
-            if (password.length >= 6) {
-              localStorage.setItem('user', JSON.stringify(userFound));
-              setUser(userFound);
-              resolve();
-            } else {
-              reject(new Error('Invalid password'));
-            }
-          } else {
-            // Check if user is pending verification
-            const pendingUser = pendingUsers.find((u: any) => u.email === email);
-            if (pendingUser) {
-              reject(new Error('Please verify your email before logging in'));
-            } else {
-              reject(new Error('User not found'));
-            }
-          }
-        } catch (error) {
-          reject(error);
-        } finally {
-          setIsLoading(false);
-        }
-      }, 1000);
-    });
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+      
+      toast.success("Login successful", {
+        description: "Welcome back to AI Study Planner!",
+      });
+      
+      navigate('/');
+    } catch (error) {
+      if (error instanceof Error) {
+        toast.error("Login failed", {
+          description: error.message || "Invalid email or password. Please try again.",
+        });
+      } else {
+        toast.error("Login failed", {
+          description: "An unexpected error occurred. Please try again.",
+        });
+      }
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Signup function
   const signup = async (name: string, email: string, password: string): Promise<void> => {
     setIsLoading(true);
-    
-    // Simulate API call - In a real app, this would create a user in the backend
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        try {
-          // Check if user already exists
-          const pendingUsers = JSON.parse(localStorage.getItem('pendingUsers') || '[]');
-          const storedUsers = JSON.parse(localStorage.getItem('users') || '[]');
-          
-          if (storedUsers.some((u: User) => u.email === email) || 
-              pendingUsers.some((u: any) => u.email === email)) {
-            reject(new Error('User with this email already exists'));
-            return;
-          }
-          
-          // In a real app, this would be handled by the backend
-          const newUser = { 
-            email, 
-            name,
-            emailVerified: false,
-            verificationToken: Math.random().toString(36).substring(2, 15)
-          };
-          
-          // Store in pending users
-          pendingUsers.push(newUser);
-          localStorage.setItem('pendingUsers', JSON.stringify(pendingUsers));
-          
-          resolve();
-        } catch (error) {
-          reject(error);
-        } finally {
-          setIsLoading(false);
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: name,
+          },
         }
-      }, 1000);
-    });
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+      
+      toast.success("Account created successfully", {
+        description: "Please check your email for confirmation.",
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        toast.error("Signup failed", {
+          description: error.message || "Unable to create account. Please try again.",
+        });
+      } else {
+        toast.error("Signup failed", {
+          description: "An unexpected error occurred. Please try again.",
+        });
+      }
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Verify email function
   const verifyEmail = async (token: string): Promise<void> => {
     setIsLoading(true);
-    
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        try {
-          const pendingUsers = JSON.parse(localStorage.getItem('pendingUsers') || '[]');
-          const storedUsers = JSON.parse(localStorage.getItem('users') || '[]');
-          
-          const userIndex = pendingUsers.findIndex((u: any) => u.verificationToken === token);
-          
-          if (userIndex >= 0) {
-            const verifiedUser = {
-              ...pendingUsers[userIndex],
-              emailVerified: true
-            };
-            
-            // Remove verification token
-            delete verifiedUser.verificationToken;
-            
-            // Add to verified users
-            storedUsers.push(verifiedUser);
-            localStorage.setItem('users', JSON.stringify(storedUsers));
-            
-            // Remove from pending users
-            pendingUsers.splice(userIndex, 1);
-            localStorage.setItem('pendingUsers', JSON.stringify(pendingUsers));
-            
-            toast.success("Email verified successfully", {
-              description: "You can now log in to your account"
-            });
-            
-            resolve();
-          } else {
-            reject(new Error('Invalid or expired verification token'));
-          }
-        } catch (error) {
-          reject(error);
-        } finally {
-          setIsLoading(false);
-        }
-      }, 1000);
-    });
+    // In Supabase, email verification is handled automatically
+    // This function is kept for API compatibility but it's not needed with Supabase
+    try {
+      // Just resolve as this is handled by Supabase
+      toast.success("Email verified successfully", {
+        description: "You can now log in to your account"
+      });
+      navigate('/auth');
+    } catch (error) {
+      toast.error("Verification failed", {
+        description: "Invalid or expired verification token."
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Resend verification email
   const resendVerification = async (email: string): Promise<void> => {
     setIsLoading(true);
-    
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        try {
-          const pendingUsers = JSON.parse(localStorage.getItem('pendingUsers') || '[]');
-          const userIndex = pendingUsers.findIndex((u: any) => u.email === email);
-          
-          if (userIndex >= 0) {
-            // Generate new verification token
-            pendingUsers[userIndex].verificationToken = Math.random().toString(36).substring(2, 15);
-            localStorage.setItem('pendingUsers', JSON.stringify(pendingUsers));
-            
-            toast.success("Verification email sent", {
-              description: "Please check your inbox for the verification link"
-            });
-            
-            resolve();
-          } else {
-            reject(new Error('Email not found or already verified'));
-          }
-        } catch (error) {
-          reject(error);
-        } finally {
-          setIsLoading(false);
-        }
-      }, 1000);
-    });
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email,
+      });
+      
+      if (error) {
+        throw new Error(error.message);
+      }
+      
+      toast.success("Verification email sent", {
+        description: "Please check your inbox for the verification link"
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        toast.error("Failed to resend verification", {
+          description: error.message
+        });
+      } else {
+        toast.error("Failed to resend verification", {
+          description: "An unexpected error occurred"
+        });
+      }
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Update profile
-  const updateProfile = (data: Partial<User>) => {
+  const updateProfile = async (data: Partial<UserProfile>): Promise<void> => {
     if (!user) return;
     
-    const updatedUser = { ...user, ...data };
-    localStorage.setItem('user', JSON.stringify(updatedUser));
-    setUser(updatedUser);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update(data)
+        .eq('id', user.id);
+      
+      if (error) {
+        throw new Error(error.message);
+      }
+      
+      // Update local state
+      setProfile(prev => prev ? { ...prev, ...data } : null);
+      
+      toast.success("Profile updated", {
+        description: "Your profile information has been saved"
+      });
+    } catch (error) {
+      toast.error("Failed to update profile", {
+        description: "Please try again later"
+      });
+    }
   };
 
   // Logout function
-  const logout = () => {
-    localStorage.removeItem('user');
-    setUser(null);
-    navigate('/auth');
+  const logout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error("Error signing out:", error);
+        throw error;
+      }
+      navigate('/auth');
+    } catch (error) {
+      toast.error("Logout failed", {
+        description: "Please try again"
+      });
+    }
   };
 
   const value = {
     user,
+    profile,
+    session,
     login,
     signup,
     logout,

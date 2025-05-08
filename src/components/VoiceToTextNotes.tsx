@@ -3,25 +3,64 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
-import { Mic, MicOff, Save, RefreshCw } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Mic, MicOff, Save, RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from '@/components/ui/sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+
+interface VoiceNote {
+  id: string;
+  title: string;
+  content: string;
+  created_at: string;
+}
 
 const VoiceToTextNotes: React.FC = () => {
+  const { user } = useAuth();
   const [isRecording, setIsRecording] = useState(false);
   const [notes, setNotes] = useState('');
+  const [title, setTitle] = useState('New Voice Note');
   const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const [tempTranscript, setTempTranscript] = useState('');
   const processingRef = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [savedNotes, setSavedNotes] = useState<VoiceNote[]>([]);
+  const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
   
-  // Load saved notes on component mount
+  // Load user's notes from Supabase
   useEffect(() => {
-    const savedNotes = localStorage.getItem('voiceNotes');
-    if (savedNotes) {
-      setNotes(savedNotes);
+    if (user) {
+      fetchNotes();
     }
-  }, []);
+  }, [user]);
+  
+  const fetchNotes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('voice_notes')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        throw error;
+      }
+      
+      if (data) {
+        setSavedNotes(data);
+        
+        // Load the most recent note if available
+        if (data.length > 0 && !activeNoteId) {
+          setActiveNoteId(data[0].id);
+          setTitle(data[0].title);
+          setNotes(data[0].content);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching notes:', error);
+    }
+  };
   
   useEffect(() => {
     // Initialize speech recognition if browser supports it
@@ -135,51 +174,165 @@ const VoiceToTextNotes: React.FC = () => {
     }
   };
 
-  const saveNotes = () => {
-    if (notes.trim()) {
-      setIsSaving(true);
-      
-      // Simulate saving delay for better UX
-      setTimeout(() => {
-        // In a real app, you'd save this to a database
-        localStorage.setItem('voiceNotes', notes);
+  const saveNotes = async () => {
+    if (!user) {
+      toast.error("Authentication required", {
+        description: "Please login to save notes"
+      });
+      return;
+    }
+    
+    if (!title.trim() || !notes.trim()) {
+      toast.error("Title and content required", {
+        description: "Please add a title and some content to your note"
+      });
+      return;
+    }
+    
+    setIsSaving(true);
+    
+    try {
+      if (activeNoteId) {
+        // Update existing note
+        const { error } = await supabase
+          .from('voice_notes')
+          .update({
+            title,
+            content: notes,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', activeNoteId);
         
-        toast("Notes saved", {
-          description: "Your voice notes have been saved successfully"
+        if (error) throw error;
+        
+        toast.success("Note updated", {
+          description: "Your voice note has been saved successfully"
         });
+      } else {
+        // Create new note
+        const { data, error } = await supabase
+          .from('voice_notes')
+          .insert({
+            title,
+            content: notes,
+            user_id: user.id
+          })
+          .select();
         
-        setIsSaving(false);
-      }, 500);
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          setActiveNoteId(data[0].id);
+        }
+        
+        toast.success("Note saved", {
+          description: "Your voice note has been saved successfully"
+        });
+      }
+      
+      // Refresh the notes list
+      fetchNotes();
+    } catch (error) {
+      console.error('Error saving note:', error);
+      toast.error("Error saving note", {
+        description: "Please try again later"
+      });
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const clearNotes = () => {
-    if (window.confirm('Are you sure you want to clear all notes?')) {
-      setNotes('');
-      localStorage.removeItem('voiceNotes');
-      toast("Notes cleared", {
-        description: "All voice notes have been cleared"
-      });
+  const createNewNote = () => {
+    setActiveNoteId(null);
+    setTitle('New Voice Note');
+    setNotes('');
+  };
+  
+  const loadNote = (note: VoiceNote) => {
+    setActiveNoteId(note.id);
+    setTitle(note.title);
+    setNotes(note.content);
+  };
+
+  const deleteNote = async () => {
+    if (!activeNoteId) return;
+    
+    if (window.confirm('Are you sure you want to delete this note?')) {
+      try {
+        const { error } = await supabase
+          .from('voice_notes')
+          .delete()
+          .eq('id', activeNoteId);
+        
+        if (error) throw error;
+        
+        toast.success("Note deleted", {
+          description: "Your voice note has been deleted"
+        });
+        
+        // Refresh the notes list and reset the form
+        fetchNotes();
+        createNewNote();
+      } catch (error) {
+        console.error('Error deleting note:', error);
+        toast.error("Error deleting note", {
+          description: "Please try again later"
+        });
+      }
     }
   };
 
   return (
     <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="text-xl font-semibold">Voice Notes</CardTitle>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-xl font-semibold flex justify-between items-center">
+          <span>Voice Notes</span>
+          <Button variant="outline" size="sm" onClick={createNewNote}>
+            New Note
+          </Button>
+        </CardTitle>
         <CardDescription>
           Record voice notes that will be converted to text automatically
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <Textarea 
-          value={notes + (tempTranscript ? ' ' + tempTranscript : '')}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Your voice notes will appear here..."
-          className="min-h-[200px]"
-        />
+      <CardContent className="space-y-4">
+        <div className="flex flex-col space-y-2">
+          <Input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Note Title"
+            className="font-medium"
+          />
+          
+          <Textarea 
+            value={notes + (tempTranscript ? ' ' + tempTranscript : '')}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Your voice notes will appear here..."
+            className="min-h-[200px]"
+          />
+        </div>
         
-        <div className="mt-4 flex items-center">
+        {savedNotes.length > 0 && (
+          <div>
+            <h3 className="text-sm font-medium mb-2">Saved Notes</h3>
+            <div className="max-h-[150px] overflow-y-auto space-y-2">
+              {savedNotes.map((note) => (
+                <div 
+                  key={note.id}
+                  className={`p-2 rounded-md cursor-pointer ${
+                    activeNoteId === note.id ? 'bg-primary/10' : 'bg-muted hover:bg-muted/70'
+                  }`}
+                  onClick={() => loadNote(note)}
+                >
+                  <div className="font-medium">{note.title}</div>
+                  <div className="text-xs text-muted-foreground truncate">{note.content.substring(0, 100)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        <div className="flex items-center">
           {isRecording && (
             <div className="animate-pulse mr-2 flex items-center">
               <span className="h-3 w-3 rounded-full bg-red-500 mr-2"></span>
@@ -198,14 +351,15 @@ const VoiceToTextNotes: React.FC = () => {
             {isRecording ? "Stop Recording" : "Start Recording"}
           </Button>
           
-          {notes.trim() && (
-            <Button variant="outline" onClick={clearNotes}>
-              Clear All
+          {activeNoteId && (
+            <Button variant="outline" onClick={deleteNote}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
             </Button>
           )}
         </div>
         
-        <Button onClick={saveNotes} disabled={!notes.trim() || isSaving}>
+        <Button onClick={saveNotes} disabled={!title.trim() || !notes.trim() || isSaving}>
           {isSaving ? (
             <>
               <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
@@ -214,7 +368,7 @@ const VoiceToTextNotes: React.FC = () => {
           ) : (
             <>
               <Save className="mr-2 h-4 w-4" />
-              Save Notes
+              Save Note
             </>
           )}
         </Button>

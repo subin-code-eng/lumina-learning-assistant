@@ -1,46 +1,54 @@
 
 import React, { useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { Mail, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from '@/components/ui/sonner';
 
 const EmailVerification: React.FC = () => {
-  const { verifyEmail } = useAuth();
   const [isVerifying, setIsVerifying] = useState(true);
   const [verificationSuccess, setVerificationSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
-  const location = useLocation();
+  const [searchParams] = useSearchParams();
   
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const token = params.get('token');
-    
-    if (!token) {
-      setError("Invalid verification link. No token provided.");
-      setIsVerifying(false);
-      return;
-    }
-    
     const handleVerification = async () => {
-      try {
-        await verifyEmail(token);
+      // Check if redirected from password reset
+      const resetPassword = searchParams.get('type') === 'recovery';
+      
+      if (resetPassword) {
+        // This is a password reset
+        setIsVerifying(false);
         setVerificationSuccess(true);
-      } catch (error) {
-        if (error instanceof Error) {
-          setError(error.message);
+        return;
+      }
+      
+      // For email verification, Supabase handles this automatically
+      // We can just check the hash to see if it contains an access_token
+      try {
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const accessToken = hashParams.get('access_token');
+        
+        if (accessToken) {
+          // There was a token, assume verification was successful
+          setVerificationSuccess(true);
         } else {
-          setError("Verification failed. Please try again.");
+          // No token found
+          setError("No verification token found. The link might be invalid or expired.");
         }
+      } catch (error) {
+        setError("Verification failed. Please try again.");
       } finally {
         setIsVerifying(false);
       }
     };
     
     handleVerification();
-  }, [location.search, verifyEmail]);
+  }, [searchParams]);
   
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/50 p-4">
