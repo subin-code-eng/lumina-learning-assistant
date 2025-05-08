@@ -503,7 +503,7 @@ const AITutor: React.FC = () => {
               <div>
                 <label className="text-xs font-medium">Learning Style:</label>
                 <select 
-                  className="w-full mt-1 text-xs p-1 rounded border"
+                  className="w-full mt-1 text-xs p-1 rounded border bg-background text-foreground"
                   value={userPreferences.learningStyle}
                   onChange={(e) => updatePreference('learningStyle', e.target.value)}
                 >
@@ -517,7 +517,7 @@ const AITutor: React.FC = () => {
               <div>
                 <label className="text-xs font-medium">Explanation Level:</label>
                 <select 
-                  className="w-full mt-1 text-xs p-1 rounded border"
+                  className="w-full mt-1 text-xs p-1 rounded border bg-background text-foreground"
                   value={userPreferences.difficulty}
                   onChange={(e) => updatePreference('difficulty', e.target.value as any)}
                 >
@@ -530,7 +530,7 @@ const AITutor: React.FC = () => {
               <div>
                 <label className="text-xs font-medium">Response Detail:</label>
                 <select 
-                  className="w-full mt-1 text-xs p-1 rounded border"
+                  className="w-full mt-1 text-xs p-1 rounded border bg-background text-foreground"
                   value={userPreferences.responseLength}
                   onChange={(e) => updatePreference('responseLength', e.target.value as any)}
                 >
@@ -590,7 +590,7 @@ const AITutor: React.FC = () => {
                         className={`rounded-lg p-3 text-sm ${
                           msg.sender === 'user' 
                             ? 'bg-secondary text-secondary-foreground' 
-                            : 'bg-muted'
+                            : 'bg-muted text-foreground'
                         }`}
                       >
                         {currentTopic && msg.sender === 'ai' && !msg.text.startsWith("That's an interesting") && (

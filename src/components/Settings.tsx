@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,36 @@ const Settings: React.FC = () => {
   const [notifications, setNotifications] = useState(true);
   const [soundEffects, setSoundEffects] = useState(true);
 
+  // Check for system preference or saved preference on mount
+  useEffect(() => {
+    // Check if dark mode is saved in localStorage
+    const savedSettings = localStorage.getItem('appSettings');
+    if (savedSettings) {
+      try {
+        const settings = JSON.parse(savedSettings);
+        setDarkMode(settings.darkMode);
+        setNotifications(settings.notifications);
+        setSoundEffects(settings.soundEffects);
+        
+        // Apply dark mode to document if needed
+        if (settings.darkMode) {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      } catch (error) {
+        console.error("Error parsing saved settings:", error);
+      }
+    } else {
+      // Check for system preference if no saved setting
+      const prefersDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      setDarkMode(prefersDarkMode);
+      if (prefersDarkMode) {
+        document.documentElement.classList.add('dark');
+      }
+    }
+  }, []);
+
   const handleSaveSettings = () => {
     // In a real app, you would save these to a user's profile in the database
     localStorage.setItem('appSettings', JSON.stringify({
@@ -22,9 +52,26 @@ const Settings: React.FC = () => {
       soundEffects
     }));
     
+    // Apply dark mode immediately
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    
     toast.success("Settings saved", {
       description: "Your preferences have been updated"
     });
+  };
+
+  const toggleDarkMode = (checked: boolean) => {
+    setDarkMode(checked);
+    // Apply the change immediately for better UX
+    if (checked) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
   };
 
   return (
@@ -47,7 +94,7 @@ const Settings: React.FC = () => {
               <Sun className="h-4 w-4 text-muted-foreground" />
               <Switch 
                 checked={darkMode}
-                onCheckedChange={setDarkMode}
+                onCheckedChange={toggleDarkMode}
               />
               <Moon className="h-4 w-4 text-muted-foreground" />
             </div>

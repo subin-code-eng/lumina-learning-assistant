@@ -9,13 +9,14 @@ import { toast } from '@/components/ui/sonner';
 
 const StudyPlanCreator: React.FC = () => {
   const [loading, setLoading] = useState(false);
+  const [selectedDifficulty, setSelectedDifficulty] = useState<string>('Intermediate');
 
   const handleCreatePlan = () => {
     setLoading(true);
     // Simulate AI processing
     setTimeout(() => {
       setLoading(false);
-      toast("Study plan created", {
+      toast.success("Study plan created", {
         description: "Your personalized study plan has been created and added to your calendar"
       });
     }, 2000);
@@ -48,7 +49,7 @@ const StudyPlanCreator: React.FC = () => {
           <div>
             <label className="text-sm font-medium">Study time preference</label>
             <Select defaultValue="morning">
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="Select time" />
               </SelectTrigger>
               <SelectContent>
@@ -63,7 +64,7 @@ const StudyPlanCreator: React.FC = () => {
           <div>
             <label className="text-sm font-medium">Duration</label>
             <Select defaultValue="2weeks">
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="Select duration" />
               </SelectTrigger>
               <SelectContent>
@@ -82,9 +83,10 @@ const StudyPlanCreator: React.FC = () => {
             {['Beginner', 'Intermediate', 'Advanced', 'Expert'].map((level) => (
               <Button 
                 key={level} 
-                variant="outline"
+                variant={selectedDifficulty === level ? "default" : "outline"}
                 size="sm"
                 className="flex-1"
+                onClick={() => setSelectedDifficulty(level)}
               >
                 {level}
               </Button>
