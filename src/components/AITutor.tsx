@@ -9,6 +9,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/sonner';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import ReactMarkdown from 'react-markdown';
 
 // Types for chat messages
 interface Message {
@@ -28,6 +31,7 @@ interface UserPreference {
 }
 
 const AITutor: React.FC = () => {
+  const { user } = useAuth();
   // State for messages
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -65,6 +69,7 @@ const AITutor: React.FC = () => {
   // References
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
   
   // Track conversation topics for personalization
   useEffect(() => {
@@ -101,6 +106,31 @@ const AITutor: React.FC = () => {
     }
   }, [isTyping, showLongForm]);
 
+  // Save conversation to Supabase if user is logged in
+  useEffect(() => {
+    const saveConversationToServer = async () => {
+      if (!user || messages.length <= 1) return;
+      
+      try {
+        await supabase
+          .from('ai_conversations')
+          .upsert({
+            user_id: user.id,
+            conversation_title: `Conversation ${new Date().toLocaleDateString()}`,
+            messages: messages,
+            updated_at: new Date().toISOString()
+          })
+          .select();
+      } catch (error) {
+        console.error('Error saving conversation:', error);
+      }
+    };
+    
+    // Save conversation when it's updated
+    const saveTimeout = setTimeout(saveConversationToServer, 2000);
+    return () => clearTimeout(saveTimeout);
+  }, [messages, user]);
+
   // Suggested prompts based on learning style and preferences
   const generateSuggestedPrompts = () => {
     const basePrompts = [
@@ -123,7 +153,27 @@ const AITutor: React.FC = () => {
     return basePrompts;
   };
 
-  const handleSend = (customInput?: string) => {
+  // Function to call the AI API
+  const callAIEndpoint = async (userQuery: string): Promise<string> => {
+    try {
+      const { data, error } = await supabase.functions.invoke('ai-tutor', {
+        body: {
+          query: userQuery,
+          userPreferences,
+          conversationContext: conversationContext.slice(-5) // Last 5 exchanges for context
+        }
+      });
+      
+      if (error) throw new Error(error.message);
+      
+      return data?.response || "I'm having trouble connecting to the AI service right now. Please try again in a moment.";
+    } catch (error) {
+      console.error('Error calling AI endpoint:', error);
+      return "I apologize, but I'm experiencing a technical issue. Let's try again with a simpler question.";
+    }
+  };
+
+  const handleSend = async (customInput?: string) => {
     const messageText = customInput || input;
     if (!messageText.trim()) return;
     
@@ -147,16 +197,30 @@ const AITutor: React.FC = () => {
       setShowLongForm(false);
     }
     
-    // Generate follow-up questions based on user input for later use
-    generateFollowUpQuestions(messageText);
-    
-    // Simulate AI thinking time (shorter for better experience)
-    setTimeout(() => {
-      setIsThinking(false);
+    try {
+      // Generate follow-up questions based on user input for later use
+      generateFollowUpQuestions(messageText);
       
-      // Start "typing" the response word by word
-      simulateTypingResponse(generateAdaptiveResponse(messageText));
-    }, 700 + Math.random() * 800); // Random thinking time between 0.7-1.5s
+      // Simulate AI thinking time (shorter for better experience)
+      setTimeout(() => {
+        setIsThinking(false);
+        
+        // Call AI API and simulate typing the response
+        callAIEndpoint(messageText).then(aiResponse => {
+          simulateTypingResponse(aiResponse);
+        }).catch(error => {
+          console.error("Error getting AI response:", error);
+          simulateTypingResponse("I'm having trouble processing your request. Please try again.");
+        });
+      }, 700 + Math.random() * 800); // Random thinking time between 0.7-1.5s
+    } catch (error) {
+      console.error("Error in handleSend:", error);
+      setIsTyping(false);
+      setIsThinking(false);
+      toast.error("Something went wrong", {
+        description: "Failed to process your message. Please try again."
+      });
+    }
   };
 
   const simulateTypingResponse = (fullResponse: string) => {
@@ -202,7 +266,7 @@ const AITutor: React.FC = () => {
           }, 1000);
         }
       }
-    }, 25); // Speed of typing (faster than before)
+    }, 20); // Speed of typing (faster than before)
   };
 
   const addFollowUpMessage = () => {
@@ -262,142 +326,6 @@ const AITutor: React.FC = () => {
     setFollowUpQuestions(questions);
   };
 
-  const generateAdaptiveResponse = (query: string): string => {
-    const lowercaseQuery = query.toLowerCase();
-    let response = "";
-    
-    // Adapt response based on user preferences
-    const detailedExplanation = userPreferences.responseLength === 'detailed';
-    const isVisualLearner = userPreferences.learningStyle === 'visual';
-    const difficultyLevel = userPreferences.difficulty;
-    
-    // More detailed responses with adaptive content
-    if (lowercaseQuery.includes('study') && lowercaseQuery.includes('plan')) {
-      response = `Creating an effective study plan involves several key principles. ${detailedExplanation ? "Let's break this down in detail:" : "Here's a brief overview:"}\n\n`;
-      
-      response += "1. **Assessment**: Take time to identify which topics need most attention\n";
-      response += "2. **Scheduling**: Allocate focused sessions with regular breaks\n";
-      response += "3. **Active recall**: Test yourself on the material rather than just re-reading\n";
-      response += "4. **Spaced repetition**: Review material at increasing intervals\n";
-      response += "5. **Practice testing**: Use past papers or create mock tests\n\n";
-      
-      if (detailedExplanation) {
-        response += "Research shows that spacing out your study sessions over time is much more effective than cramming. This is because spaced learning allows your brain to form stronger neural connections.\n\n";
-        
-        response += isVisualLearner ? 
-          "Try creating a visual calendar or timeline for your study plan, using color-coding for different subjects. This can help you see the big picture of your study schedule at a glance.\n\n" :
-          "Consider recording yourself summarizing key concepts and listening to these recordings during walks or other downtime.\n\n";
-      }
-      
-      response += "Would you like me to help you develop a personalized study plan for a specific subject or exam? I can tailor it to your available time and learning preferences.";
-    } 
-    else if (lowercaseQuery.includes('photosynthesis')) {
-      response = `Photosynthesis is the process by which plants convert light energy into chemical energy. ${difficultyLevel === 'beginner' ? "Think of it as plants making their own food using sunlight!" : "It's a complex biochemical process that sustains most life on Earth."}\n\n`;
-      
-      response += "The basic equation is:\n6CO₂ + 6H₂O + light energy → C₆H₁₂O₆ + 6O₂\n\n";
-      
-      if (detailedExplanation) {
-        response += "This process occurs primarily in the chloroplasts of plant cells, specifically in structures called thylakoids. The process has two main stages:\n\n";
-        response += "1. **Light-dependent reactions**: These occur in the thylakoid membrane and require direct light energy to produce ATP and NADPH while releasing oxygen.\n\n";
-        response += "2. **Light-independent reactions** (Calvin cycle): These occur in the stroma and use the ATP and NADPH from the first stage to convert CO₂ into glucose.\n\n";
-        
-        if (difficultyLevel === 'advanced') {
-          response += "The electron transport chain in the thylakoid membrane is crucial for the generation of ATP through chemiosmosis. Photosystems I and II contain chlorophyll molecules that capture specific wavelengths of light, initiating the electron flow.\n\n";
-        }
-      }
-      
-      if (isVisualLearner) {
-        response += "Visualize this as a solar-powered factory: sunlight provides the energy, CO₂ and water are the raw materials, and glucose and oxygen are the products. The chloroplasts are the factory buildings containing all the necessary machinery.\n\n";
-      }
-      
-      response += "This remarkable process is the foundation of most food chains on Earth and produces the oxygen we breathe. Would you like me to explain any specific part of photosynthesis in more detail?";
-    }
-    else if (lowercaseQuery.includes('quadratic')) {
-      response = `A quadratic equation takes the form ax² + bx + c = 0, where a, b, and c are constants and a ≠ 0. ${difficultyLevel === 'beginner' ? "These equations create parabolas (U-shaped curves) when graphed." : "These second-degree polynomial equations have interesting properties and applications."}\n\n`;
-      
-      response += "There are several methods to solve quadratic equations:\n\n";
-      
-      if (isVisualLearner) {
-        response += "Imagine a U-shaped curve crossing the x-axis. The points where it crosses are your solutions!\n\n";
-      }
-      
-      response += "1. **Factoring**: Find factors p, q, r, s such that ax² + bx + c = (px + q)(rx + s)\n";
-      response += "2. **Quadratic Formula**: x = (-b ± √(b² - 4ac)) / 2a\n";
-      
-      if (detailedExplanation || difficultyLevel === 'advanced') {
-        response += "3. **Completing the Square**: Rearrange to (x + d)² = e form\n\n";
-        response += "The discriminant b² - 4ac tells you about the nature of the solutions:\n";
-        response += "- If b² - 4ac > 0: Two distinct real solutions\n";
-        response += "- If b² - 4ac = 0: One repeated real solution\n";
-        response += "- If b² - 4ac < 0: Two complex conjugate solutions\n\n";
-        
-        if (difficultyLevel === 'advanced') {
-          response += "The quadratic formula is derived from the completing the square method, showing the elegant connection between different algebraic approaches.\n\n";
-        }
-      }
-      
-      response += "Would you like to see an example solved step-by-step, or would you prefer to practice with a specific problem?";
-    }
-    else if (lowercaseQuery.includes('motivat')) {
-      response = "Staying motivated with your studies can be challenging. Here are some evidence-based strategies that might help:\n\n";
-      
-      response += "**Connect to Your 'Why'**:\n";
-      response += "- Clearly define why your education matters to your long-term goals\n";
-      response += "- Visualize your future self benefiting from your current efforts\n\n";
-      
-      response += "**Set Effective Goals**:\n";
-      response += "- Break large goals into smaller, achievable milestones\n";
-      response += "- Track progress visibly to see how far you've come\n\n";
-      
-      if (detailedExplanation) {
-        response += "**Optimize Your Environment**:\n";
-        response += "- Create a dedicated, distraction-free study space\n";
-        response += "- Use app blockers during study sessions\n\n";
-        
-        response += "**Maintain Well-being**:\n";
-        response += "- Regular exercise boosts cognitive function and mood\n";
-        response += "- Adequate sleep improves memory consolidation\n";
-      }
-      
-      response += "Remember that motivation naturally fluctuates. On days when motivation is low, rely on established routines and habits to carry you through.\n\n";
-      
-      response += "What specific aspect of motivation are you struggling with? I'd be happy to provide more targeted strategies.";
-    }
-    else if (lowercaseQuery.includes('help') || lowercaseQuery.includes('what can you')) {
-      response = "I'm your AI study assistant, and I'm here to help you succeed in your academic journey. Here's what I can do for you:\n\n";
-      
-      response += "**Explain Concepts**: I can break down complex topics into understandable parts and provide examples that match your learning style.\n\n";
-      
-      response += "**Study Support**: I can create personalized study plans, suggest effective techniques, and help you prepare for exams with practice questions.\n\n";
-      
-      response += "**Answer Questions**: I'm here to provide detailed answers to your subject-specific questions and clarify confusing topics from your coursework.\n\n";
-      
-      if (detailedExplanation) {
-        response += "**Skill Development**: I can guide you through academic writing processes, help with research methodologies, and suggest resources for further learning.\n\n";
-        
-        response += "**Motivation and Productivity**: I can provide strategies to overcome procrastination, help establish effective study habits, and offer encouragement during challenging academic periods.\n\n";
-      }
-      
-      response += "Feel free to ask about any subject you're studying. What would you like help with today?";
-    }
-    else {
-      // Generic response with personalization based on learning preferences
-      response = `That's an interesting question about ${query.split(' ').slice(0, 3).join(' ')}...\n\n`;
-      
-      if (isVisualLearner) {
-        response += "I'd be happy to explain this with visual analogies and diagrams to help you understand better. ";
-      } else if (userPreferences.learningStyle === 'kinesthetic') {
-        response += "I can suggest some hands-on activities that might help you grasp this concept better. ";
-      }
-      
-      response += "To give you the most helpful response, I'd need to understand a bit more about your specific needs. Are you looking for an explanation of this topic, studying for a test, or trying to solve a particular problem?\n\n";
-      
-      response += "Let me know how I can best support your learning goals, and I'll tailor my response accordingly.";
-    }
-    
-    return response;
-  };
-
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
@@ -452,6 +380,22 @@ const AITutor: React.FC = () => {
     handleSend(question);
   };
 
+  const clearConversation = () => {
+    setMessages([
+      {
+        id: '1',
+        text: "Hello! I'm your AI study partner. How can I help with your studies today?",
+        sender: 'ai',
+        timestamp: new Date(),
+        type: 'standard'
+      }
+    ]);
+    setConversationContext([]);
+    toast.success("Conversation cleared", {
+      description: "Started a new conversation"
+    });
+  };
+
   return (
     <Card className="w-full h-[600px] flex flex-col">
       <CardHeader className="pb-3">
@@ -487,6 +431,14 @@ const AITutor: React.FC = () => {
               title="Save conversation"
             >
               <Download className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={clearConversation}
+              title="Clear conversation"
+            >
+              <RefreshCw className="h-4 w-4" />
             </Button>
           </div>
         </div>
@@ -554,7 +506,7 @@ const AITutor: React.FC = () => {
         )}
       </CardHeader>
       
-      <CardContent className="flex-grow overflow-hidden pb-0 px-3 relative">
+      <CardContent className="flex-grow overflow-hidden pb-0 px-3 relative" ref={scrollAreaRef}>
         <ScrollArea className="h-full pr-4">
           <div className="space-y-4 pb-4">
             {messages.map((msg) => (
@@ -599,13 +551,17 @@ const AITutor: React.FC = () => {
                           </Badge>
                         )}
                         
-                        <div>
-                          {msg.text.split('\n').map((line, i) => (
-                            <React.Fragment key={i}>
-                              {line}
-                              {i !== msg.text.split('\n').length - 1 && <br />}
-                            </React.Fragment>
-                          ))}
+                        <div className="markdown-content">
+                          {msg.sender === 'ai' ? (
+                            <ReactMarkdown>{msg.text}</ReactMarkdown>
+                          ) : (
+                            msg.text.split('\n').map((line, i) => (
+                              <React.Fragment key={i}>
+                                {line}
+                                {i !== msg.text.split('\n').length - 1 && <br />}
+                              </React.Fragment>
+                            ))
+                          )}
                         </div>
                       </div>
                       <div className="text-xs text-muted-foreground px-1 flex items-center">
@@ -742,6 +698,37 @@ const AITutor: React.FC = () => {
           </form>
         )}
       </CardFooter>
+
+      <style jsx global>{`
+        .markdown-content p {
+          margin-bottom: 0.5rem;
+        }
+        .markdown-content ul, .markdown-content ol {
+          margin-left: 1.5rem;
+          margin-bottom: 0.5rem;
+        }
+        .markdown-content li {
+          margin-bottom: 0.25rem;
+        }
+        .markdown-content h1, .markdown-content h2, .markdown-content h3 {
+          margin-top: 0.75rem;
+          margin-bottom: 0.5rem;
+          font-weight: 600;
+        }
+        .markdown-content code {
+          background-color: rgba(0, 0, 0, 0.1);
+          padding: 0.1rem 0.2rem;
+          border-radius: 0.25rem;
+          font-family: monospace;
+        }
+        .markdown-content pre {
+          background-color: rgba(0, 0, 0, 0.1);
+          padding: 0.5rem;
+          border-radius: 0.25rem;
+          overflow-x: auto;
+          margin-bottom: 0.5rem;
+        }
+      `}</style>
     </Card>
   );
 };

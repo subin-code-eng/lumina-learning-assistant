@@ -1,14 +1,25 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/components/ui/sonner';
-import { Calendar, Clock, BookOpen, RefreshCw } from 'lucide-react';
+import { Calendar, Clock, BookOpen, RefreshCw, Check } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+
+interface StudyPlan {
+  id: string;
+  title: string;
+  description: string | null;
+  subject: string;
+  difficulty: string;
+  duration_days: number;
+  created_at: string;
+}
 
 const StudyPlanCreator: React.FC = () => {
   const { user } = useAuth();
@@ -18,6 +29,9 @@ const StudyPlanCreator: React.FC = () => {
   const [goals, setGoals] = useState('');
   const [timePreference, setTimePreference] = useState('morning');
   const [duration, setDuration] = useState('14');
+  const [recentPlans, setRecentPlans] = useState<StudyPlan[]>([]);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [loadingPlans, setLoadingPlans] = useState(false);
   
   // Map duration selections to days
   const durationMap: Record<string, string> = {
@@ -27,6 +41,35 @@ const StudyPlanCreator: React.FC = () => {
     '60': '2 months',
     '90': '3 months'
   };
+
+  // Fetch user's recent study plans
+  useEffect(() => {
+    const fetchRecentPlans = async () => {
+      if (!user) return;
+      
+      setLoadingPlans(true);
+      try {
+        const { data, error } = await supabase
+          .from('study_plans')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(3);
+          
+        if (error) throw error;
+        
+        if (data) {
+          setRecentPlans(data);
+        }
+      } catch (error) {
+        console.error('Error fetching study plans:', error);
+      } finally {
+        setLoadingPlans(false);
+      }
+    };
+    
+    fetchRecentPlans();
+  }, [user, showSuccess]);
 
   const handleCreatePlan = async () => {
     if (!user) {
@@ -63,9 +106,13 @@ const StudyPlanCreator: React.FC = () => {
         throw error;
       }
       
-      toast.success("Study plan created", {
-        description: "Your personalized study plan has been created"
-      });
+      // Show success state
+      setShowSuccess(true);
+      
+      // Reset success state after 5 seconds
+      setTimeout(() => {
+        setShowSuccess(false);
+      }, 5000);
       
       // Reset form
       setSubject('');
@@ -82,6 +129,16 @@ const StudyPlanCreator: React.FC = () => {
       setLoading(false);
     }
   };
+  
+  // Format date to readable format
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
+    }).format(date);
+  };
 
   return (
     <Card className="w-full">
@@ -94,6 +151,19 @@ const StudyPlanCreator: React.FC = () => {
           Let our AI create a personalized study plan based on your goals and schedule
         </CardDescription>
       </CardHeader>
+      
+      {showSuccess && (
+        <div className="px-6 pb-3">
+          <Alert className="bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-900">
+            <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
+            <AlertTitle className="text-green-600 dark:text-green-400">Study Plan Created</AlertTitle>
+            <AlertDescription className="text-green-600/80 dark:text-green-400/80">
+              Your personalized study plan has been successfully created.
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
+      
       <CardContent className="space-y-4">
         <div>
           <label className="text-sm font-medium" htmlFor="subject">Subject</label>
@@ -177,6 +247,33 @@ const StudyPlanCreator: React.FC = () => {
             ))}
           </div>
         </div>
+        
+        {/* Recent Study Plans */}
+        {recentPlans.length > 0 && (
+          <div className="pt-4">
+            <h3 className="text-sm font-medium mb-2">Your Recent Study Plans</h3>
+            <div className="space-y-2">
+              {recentPlans.map((plan) => (
+                <div 
+                  key={plan.id} 
+                  className="p-2 border rounded-lg text-sm hover:bg-muted/50 transition-colors"
+                >
+                  <div className="font-medium">{plan.title}</div>
+                  <div className="text-xs text-muted-foreground flex justify-between">
+                    <span>{plan.difficulty} • {plan.duration_days} days</span>
+                    <span>{formatDate(plan.created_at)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {loadingPlans && (
+          <div className="text-sm text-muted-foreground text-center">
+            Loading your study plans...
+          </div>
+        )}
       </CardContent>
       <CardFooter>
         <Button 
