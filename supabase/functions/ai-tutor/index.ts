@@ -1,6 +1,6 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { OpenAI } from "https://deno.land/x/openai@v4.20.1/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,109 +12,61 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
-  
+
   try {
-    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+    const openAiApiKey = Deno.env.get("OPENAI_API_KEY");
     
-    if (!OPENAI_API_KEY) {
-      throw new Error('Missing OpenAI API key');
+    if (!openAiApiKey) {
+      console.error("Missing OpenAI API key");
+      return new Response(
+        JSON.stringify({ 
+          response: "I'm currently unable to connect to my knowledge base. Please try asking a simple question about study techniques while we resolve this issue." 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+      );
     }
-    
+
     const { query, userPreferences, conversationContext } = await req.json();
-    
-    // Create system message based on user preferences
-    let systemMessage = `You are an advanced AI tutor specializing in education. 
-You help students understand complex topics, prepare for exams, and develop effective study strategies. 
-Always provide accurate, well-structured information with examples.`;
 
-    // Customize based on learning preferences
-    if (userPreferences) {
-      if (userPreferences.learningStyle === 'visual') {
-        systemMessage += ` Use visual descriptions, metaphors, and analogies when explaining concepts.`;
-      } else if (userPreferences.learningStyle === 'auditory') {
-        systemMessage += ` Frame explanations as if speaking aloud, with clear verbal cues and structure.`;
-      } else if (userPreferences.learningStyle === 'kinesthetic') {
-        systemMessage += ` Relate concepts to physical activities and real-world applications when possible.`;
-      } else if (userPreferences.learningStyle === 'reading/writing') {
-        systemMessage += ` Provide well-organized written information with clear headings and structured text.`;
-      }
-      
-      // Add subject expertise
-      if (userPreferences.subjects && userPreferences.subjects.length > 0) {
-        systemMessage += ` You have particular expertise in ${userPreferences.subjects.join(', ')}.`;
-      }
-      
-      // Detail level
-      if (userPreferences.responseLength === 'concise') {
-        systemMessage += ` Keep explanations brief and to the point.`;
-      } else {
-        systemMessage += ` Provide detailed, comprehensive explanations.`;
-      }
-      
-      // Difficulty adjustment
-      systemMessage += ` Adjust explanations for ${userPreferences.difficulty || 'intermediate'} level understanding.`;
-    }
-
-    systemMessage += ` Format your responses using Markdown for better readability. Use bullet points, headers, and code blocks where appropriate.`;
-
-    // Construct conversation history from context
-    const messages = [
-      { role: "system", content: systemMessage },
-    ];
-
-    // Add conversation context if available
-    if (conversationContext && conversationContext.length > 0) {
-      for (let i = 0; i < conversationContext.length; i++) {
-        messages.push({ 
-          role: i % 2 === 0 ? "user" : "assistant", 
-          content: conversationContext[i] 
-        });
-      }
-    }
-
-    // Add current query
-    messages.push({ role: "user", content: query });
-
-    console.log("Sending request to OpenAI with messages:", JSON.stringify(messages));
-
-    // Call OpenAI API
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",  // Using GPT-4o mini for efficient responses
-        messages: messages,
-        temperature: 0.7,
-        max_tokens: 800,
-      }),
+    const openai = new OpenAI({
+      apiKey: openAiApiKey,
     });
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error("OpenAI API error:", errorData);
-      throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
-    }
+    // Create a system prompt based on user preferences
+    const systemPrompt = `You are an AI tutor with expertise in education and learning.
+    Adapt your responses based on these student preferences:
+    - Learning style: ${userPreferences?.learningStyle || 'visual'}
+    - Difficulty level: ${userPreferences?.difficulty || 'intermediate'}
+    - Response detail: ${userPreferences?.responseLength || 'detailed'}
+    
+    Your goal is to be helpful, clear, and educational. Provide examples and analogies
+    that match the student's learning style. Focus on accuracy and depth appropriate
+    for their level.
+    `;
 
-    const data = await response.json();
-    const aiResponse = data.choices[0].message.content;
+    const chatCompletion = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...(conversationContext?.map(text => ({ role: "user", content: text })) || []),
+        { role: "user", content: query }
+      ],
+      max_tokens: 1000,
+    });
+
+    const aiResponse = chatCompletion.choices[0].message.content;
 
     return new Response(
       JSON.stringify({ response: aiResponse }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-    
   } catch (error) {
     console.error("Error processing request:", error);
-    
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, "Content-Type": "application/json" } 
-      }
+      JSON.stringify({ 
+        response: "I apologize, but I'm experiencing a temporary issue. Please ask me a simpler question or try again in a moment." 
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     );
   }
 });

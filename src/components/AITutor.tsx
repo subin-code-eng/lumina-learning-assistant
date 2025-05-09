@@ -164,12 +164,15 @@ const AITutor: React.FC = () => {
         }
       });
       
-      if (error) throw new Error(error.message);
+      if (error) {
+        console.error('Error calling AI endpoint:', error);
+        return "I'm having trouble connecting to my knowledge base right now. Could you try with a different question?";
+      }
       
-      return data?.response || "I'm having trouble connecting to the AI service right now. Please try again in a moment.";
+      return data?.response || "I'm having trouble processing your request right now. Please try again in a moment.";
     } catch (error) {
       console.error('Error calling AI endpoint:', error);
-      return "I apologize, but I'm experiencing a technical issue. Let's try again with a simpler question.";
+      return "I apologize for the inconvenience. My systems are experiencing some temporary issues. Let's try a different approach - ask me about general study techniques or learning methods.";
     }
   };
 
