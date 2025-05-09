@@ -111,11 +111,11 @@ const AITutor: React.FC = () => {
       if (!user || messages.length <= 1) return;
       
       try {
-        // Use a raw SQL query to insert into ai_conversations since it's not in the types
+        // Use RPC to save conversation - FIXED: pass messages directly without stringifying
         const { error } = await supabase.rpc('save_ai_conversation', {
           p_user_id: user.id,
           p_conversation_title: `Conversation ${new Date().toLocaleDateString()}`,
-          p_messages: JSON.stringify(messages)
+          p_messages: messages
         });
         
         if (error) throw error;
@@ -697,7 +697,7 @@ const AITutor: React.FC = () => {
         )}
       </CardFooter>
 
-      <style jsx>{`
+      <style>{`
         .markdown-content p {
           margin-bottom: 0.5rem;
         }
