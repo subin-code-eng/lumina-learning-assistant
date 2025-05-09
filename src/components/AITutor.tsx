@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -112,16 +111,14 @@ const AITutor: React.FC = () => {
       if (!user || messages.length <= 1) return;
       
       try {
-        // Use a more explicit type assertion to fix the TypeScript error
-        const { error } = await supabase.rpc('save_ai_conversation', {
+        // Create a properly typed parameter object for the RPC call
+        const rpcParams = {
           p_user_id: user.id,
           p_conversation_title: `Conversation ${new Date().toLocaleDateString()}`,
-          p_messages: messages
-        } as {
-          p_user_id: string;
-          p_conversation_title: string;
-          p_messages: Message[];
-        });
+          p_messages: JSON.parse(JSON.stringify(messages)) // Serialize and deserialize to ensure proper JSON format
+        };
+        
+        const { error } = await supabase.rpc('save_ai_conversation', rpcParams);
         
         if (error) throw error;
       } catch (error) {

@@ -145,7 +145,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      save_ai_conversation: {
+        Args: {
+          p_user_id: string
+          p_conversation_title: string
+          p_messages: Json
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
