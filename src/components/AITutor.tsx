@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -112,15 +111,14 @@ const AITutor: React.FC = () => {
       if (!user || messages.length <= 1) return;
       
       try {
-        await supabase
-          .from('ai_conversations')
-          .upsert({
-            user_id: user.id,
-            conversation_title: `Conversation ${new Date().toLocaleDateString()}`,
-            messages: messages,
-            updated_at: new Date().toISOString()
-          })
-          .select();
+        // Use a raw SQL query to insert into ai_conversations since it's not in the types
+        const { error } = await supabase.rpc('save_ai_conversation', {
+          p_user_id: user.id,
+          p_conversation_title: `Conversation ${new Date().toLocaleDateString()}`,
+          p_messages: JSON.stringify(messages)
+        });
+        
+        if (error) throw error;
       } catch (error) {
         console.error('Error saving conversation:', error);
       }
@@ -699,7 +697,7 @@ const AITutor: React.FC = () => {
         )}
       </CardFooter>
 
-      <style jsx global>{`
+      <style jsx>{`
         .markdown-content p {
           margin-bottom: 0.5rem;
         }
