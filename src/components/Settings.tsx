@@ -74,6 +74,13 @@ const Settings: React.FC = () => {
     }
   };
 
+  // Function to check if the user is a demo account
+  const isDemoAccount = () => {
+    // You can implement actual demo account logic here
+    // For now, we'll check based on email, but you could add a custom claim or field in Supabase
+    return user?.email?.includes('demo') || false;
+  };
+
   return (
     <Card className="w-full">
       <CardHeader>
@@ -130,7 +137,7 @@ const Settings: React.FC = () => {
             </div>
           </div>
 
-          {!user?.isDemoAccount && (
+          {!isDemoAccount() && (
             <>
               <Separator />
               <div>
