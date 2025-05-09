@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -111,12 +112,16 @@ const AITutor: React.FC = () => {
       if (!user || messages.length <= 1) return;
       
       try {
-        // Use RPC to save conversation with type assertion to bypass type checking
+        // Use a more explicit type assertion to fix the TypeScript error
         const { error } = await supabase.rpc('save_ai_conversation', {
           p_user_id: user.id,
           p_conversation_title: `Conversation ${new Date().toLocaleDateString()}`,
           p_messages: messages
-        } as any);
+        } as {
+          p_user_id: string;
+          p_conversation_title: string;
+          p_messages: Message[];
+        });
         
         if (error) throw error;
       } catch (error) {
