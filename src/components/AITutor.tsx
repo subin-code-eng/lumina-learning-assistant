@@ -1,9 +1,10 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { MessageCircle, SendIcon, Sparkles, User, RefreshCw, Download, Lightbulb, Heart, BookOpen, GraduationCap, Edit } from 'lucide-react';
+import { MessageCircle, SendIcon, Sparkles, User, RefreshCw, Download, Lightbulb, Heart, BookOpen, GraduationCap, Edit, AlertCircle } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/sonner';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +12,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import ReactMarkdown from 'react-markdown';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 // Types for chat messages
 interface Message {
@@ -51,6 +53,7 @@ const AITutor: React.FC = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [showTutorPreferences, setShowTutorPreferences] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
   
   // User learning preferences
   const [userPreferences, setUserPreferences] = useState<UserPreference>({
@@ -156,6 +159,7 @@ const AITutor: React.FC = () => {
   // Function to call the AI API
   const callAIEndpoint = async (userQuery: string): Promise<string> => {
     try {
+      setApiError(null);
       const { data, error } = await supabase.functions.invoke('ai-tutor', {
         body: {
           query: userQuery,
@@ -166,12 +170,19 @@ const AITutor: React.FC = () => {
       
       if (error) {
         console.error('Error calling AI endpoint:', error);
+        setApiError("Connection issue. Please try again.");
         return "I'm having trouble connecting to my knowledge base right now. Could you try with a different question?";
       }
       
-      return data?.response || "I'm having trouble processing your request right now. Please try again in a moment.";
+      if (!data?.response) {
+        setApiError("No response received from AI service.");
+        return "I'm having trouble processing your request right now. Please try again in a moment.";
+      }
+      
+      return data.response;
     } catch (error) {
       console.error('Error calling AI endpoint:', error);
+      setApiError("Technical issue. Please try again later.");
       return "I apologize for the inconvenience. My systems are experiencing some temporary issues. Let's try a different approach - ask me about general study techniques or learning methods.";
     }
   };
@@ -179,6 +190,9 @@ const AITutor: React.FC = () => {
   const handleSend = async (customInput?: string) => {
     const messageText = customInput || input;
     if (!messageText.trim()) return;
+    
+    // Reset any previous errors
+    setApiError(null);
     
     // Add user message
     const userMessage: Message = {
@@ -213,6 +227,7 @@ const AITutor: React.FC = () => {
           simulateTypingResponse(aiResponse);
         }).catch(error => {
           console.error("Error getting AI response:", error);
+          setApiError("Failed to get AI response.");
           simulateTypingResponse("I'm having trouble processing your request. Please try again.");
         });
       }, 700 + Math.random() * 800); // Random thinking time between 0.7-1.5s
@@ -220,6 +235,7 @@ const AITutor: React.FC = () => {
       console.error("Error in handleSend:", error);
       setIsTyping(false);
       setIsThinking(false);
+      setApiError("Failed to process message.");
       toast.error("Something went wrong", {
         description: "Failed to process your message. Please try again."
       });
@@ -394,6 +410,7 @@ const AITutor: React.FC = () => {
       }
     ]);
     setConversationContext([]);
+    setApiError(null);
     toast.success("Conversation cleared", {
       description: "Started a new conversation"
     });
@@ -507,6 +524,16 @@ const AITutor: React.FC = () => {
             </div>
           </div>
         )}
+        
+        {apiError && (
+          <Alert variant="destructive" className="mt-2">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Connection Issue</AlertTitle>
+            <AlertDescription>
+              {apiError} The AI tutor is currently unavailable. Please try again later or check if your OpenAI API key has been properly configured.
+            </AlertDescription>
+          </Alert>
+        )}
       </CardHeader>
       
       <CardContent className="flex-grow overflow-hidden pb-0 px-3 relative" ref={scrollAreaRef}>
@@ -618,7 +645,7 @@ const AITutor: React.FC = () => {
       </CardContent>
       
       {/* Suggested prompts */}
-      {messages.length <= 2 && !isTyping && (
+      {messages.length <= 2 && !isTyping && !apiError && (
         <div className="px-4 py-2">
           <p className="text-xs text-muted-foreground mb-2 flex items-center">
             <BookOpen className="h-3 w-3 mr-1" />

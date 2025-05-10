@@ -20,7 +20,7 @@ serve(async (req) => {
       console.error("Missing OpenAI API key");
       return new Response(
         JSON.stringify({ 
-          response: "I'm currently unable to connect to my knowledge base. Please try asking a simple question about study techniques while we resolve this issue." 
+          response: "I'm currently unable to connect to my knowledge base. Please try again in a moment or contact support if this issue persists." 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
       );
@@ -28,6 +28,7 @@ serve(async (req) => {
 
     const { query, userPreferences, conversationContext } = await req.json();
 
+    // Initialize OpenAI client with the API key
     const openai = new OpenAI({
       apiKey: openAiApiKey,
     });
@@ -44,17 +45,19 @@ serve(async (req) => {
     for their level.
     `;
 
+    console.log("Calling OpenAI API with query:", query);
     const chatCompletion = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
       messages: [
         { role: "system", content: systemPrompt },
-        ...(conversationContext?.map(text => ({ role: "user", content: text })) || []),
+        ...(conversationContext?.map(msg => ({ role: "user", content: msg })) || []),
         { role: "user", content: query }
       ],
       max_tokens: 1000,
     });
 
     const aiResponse = chatCompletion.choices[0].message.content;
+    console.log("Received AI response successfully");
 
     return new Response(
       JSON.stringify({ response: aiResponse }),
@@ -64,7 +67,7 @@ serve(async (req) => {
     console.error("Error processing request:", error);
     return new Response(
       JSON.stringify({ 
-        response: "I apologize, but I'm experiencing a temporary issue. Please ask me a simpler question or try again in a moment." 
+        response: "I apologize, but I'm experiencing a technical issue. Please try asking a different question or try again in a moment." 
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     );
