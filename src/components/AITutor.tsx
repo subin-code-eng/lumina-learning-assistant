@@ -54,6 +54,7 @@ const AITutor: React.FC = () => {
   const [isThinking, setIsThinking] = useState(false);
   const [showTutorPreferences, setShowTutorPreferences] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [connectionAttempts, setConnectionAttempts] = useState(0);
   
   // User learning preferences
   const [userPreferences, setUserPreferences] = useState<UserPreference>({
@@ -72,6 +73,50 @@ const AITutor: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+
+  // Connection recovery
+  useEffect(() => {
+    if (apiError && connectionAttempts > 0) {
+      const timer = setTimeout(() => {
+        // Try to ping the function to see if it's back online
+        checkAPIConnection();
+      }, 30000); // Check again after 30 seconds
+      
+      return () => clearTimeout(timer);
+    }
+  }, [apiError, connectionAttempts]);
+  
+  const checkAPIConnection = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('ai-tutor', {
+        body: {
+          query: "Are you online?",
+          userPreferences,
+          conversationContext: []
+        }
+      });
+      
+      if (!error && data?.response) {
+        // Connection restored
+        setApiError(null);
+        setConnectionAttempts(0);
+        
+        // Add a system message that the connection is restored
+        const systemMessage: Message = {
+          id: Date.now().toString(),
+          text: "Connection restored! You can continue asking questions.",
+          sender: 'ai',
+          timestamp: new Date(),
+          type: 'standard'
+        };
+        
+        setMessages(prev => [...prev, systemMessage]);
+      }
+    } catch (error) {
+      console.error("Still having connection issues:", error);
+      setConnectionAttempts(prev => prev + 1);
+    }
+  };
   
   // Track conversation topics for personalization
   useEffect(() => {
@@ -170,6 +215,7 @@ const AITutor: React.FC = () => {
       
       if (error) {
         console.error('Error calling AI endpoint:', error);
+        setConnectionAttempts(prev => prev + 1);
         setApiError("Connection issue. Please try again.");
         return "I'm having trouble connecting to my knowledge base right now. Could you try with a different question?";
       }
@@ -179,9 +225,12 @@ const AITutor: React.FC = () => {
         return "I'm having trouble processing your request right now. Please try again in a moment.";
       }
       
+      // Reset connection attempts on successful response
+      setConnectionAttempts(0);
       return data.response;
     } catch (error) {
       console.error('Error calling AI endpoint:', error);
+      setConnectionAttempts(prev => prev + 1);
       setApiError("Technical issue. Please try again later.");
       return "I apologize for the inconvenience. My systems are experiencing some temporary issues. Let's try a different approach - ask me about general study techniques or learning methods.";
     }
@@ -416,6 +465,14 @@ const AITutor: React.FC = () => {
     });
   };
 
+  const handleRetryConnection = () => {
+    setApiError(null);
+    checkAPIConnection();
+    toast.info("Checking connection", {
+      description: "Attempting to reconnect to AI service..."
+    });
+  };
+
   return (
     <Card className="w-full h-[600px] flex flex-col">
       <CardHeader className="pb-3">
@@ -529,8 +586,16 @@ const AITutor: React.FC = () => {
           <Alert variant="destructive" className="mt-2">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Connection Issue</AlertTitle>
-            <AlertDescription>
-              {apiError} The AI tutor is currently unavailable. Please try again later or check if your OpenAI API key has been properly configured.
+            <AlertDescription className="flex flex-col gap-2">
+              <p>{apiError}</p>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleRetryConnection}
+                className="mt-1 w-fit"
+              >
+                <RefreshCw className="h-3 w-3 mr-1" /> Try reconnecting
+              </Button>
             </AlertDescription>
           </Alert>
         )}

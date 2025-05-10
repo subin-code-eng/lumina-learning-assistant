@@ -28,6 +28,15 @@ serve(async (req) => {
 
     const { query, userPreferences, conversationContext } = await req.json();
 
+    if (!query || query.trim() === '') {
+      return new Response(
+        JSON.stringify({ 
+          response: "I didn't catch that. Could you please ask a question?" 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+      );
+    }
+
     // Initialize OpenAI client with the API key
     const openai = new OpenAI({
       apiKey: openAiApiKey,
@@ -43,26 +52,53 @@ serve(async (req) => {
     Your goal is to be helpful, clear, and educational. Provide examples and analogies
     that match the student's learning style. Focus on accuracy and depth appropriate
     for their level.
+
+    If the user encounters any connection issues, gracefully handle them with suggestions for
+    common study techniques or learning methods.
     `;
 
     console.log("Calling OpenAI API with query:", query);
-    const chatCompletion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...(conversationContext?.map(msg => ({ role: "user", content: msg })) || []),
-        { role: "user", content: query }
-      ],
-      max_tokens: 1000,
-    });
+    
+    try {
+      const chatCompletion = await openai.chat.completions.create({
+        model: "gpt-3.5-turbo",
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...(conversationContext?.map(msg => ({ role: "user", content: msg })) || []),
+          { role: "user", content: query }
+        ],
+        max_tokens: 1000,
+        timeout: 15000, // 15 seconds timeout
+      });
 
-    const aiResponse = chatCompletion.choices[0].message.content;
-    console.log("Received AI response successfully");
+      const aiResponse = chatCompletion.choices[0].message.content;
+      console.log("Received AI response successfully");
 
-    return new Response(
-      JSON.stringify({ response: aiResponse }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+      return new Response(
+        JSON.stringify({ response: aiResponse }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } catch (openAiError) {
+      console.error("OpenAI API error:", openAiError);
+      
+      // Fallback response for OpenAI-specific errors
+      const fallbackTips = [
+        "To improve your study sessions, try the Pomodoro technique: 25 minutes of focused study followed by a 5-minute break.",
+        "Visual learners benefit from mind maps and diagrams. Kinesthetic learners do better with hands-on activities.",
+        "Spaced repetition is more effective than cramming. Review material at increasing intervals to improve retention.",
+        "Teaching concepts to others is one of the most effective ways to solidify your understanding.",
+        "Set specific, measurable goals for each study session rather than vague objectives."
+      ];
+      
+      const randomTip = fallbackTips[Math.floor(Math.random() * fallbackTips.length)];
+      
+      return new Response(
+        JSON.stringify({ 
+          response: `I'm having trouble processing your specific question right now, but here's a helpful study tip: ${randomTip}\n\nPlease try asking a different question.` 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+      );
+    }
   } catch (error) {
     console.error("Error processing request:", error);
     return new Response(
