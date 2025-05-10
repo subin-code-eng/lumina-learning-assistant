@@ -20,7 +20,7 @@ serve(async (req) => {
       console.error("Missing OpenAI API key");
       return new Response(
         JSON.stringify({ 
-          response: "I'm currently unable to connect to my knowledge base. Please try again in a moment or contact support if this issue persists." 
+          response: "I'm currently unable to connect to my knowledge base due to a configuration issue. Please contact support to resolve this issue." 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
       );
@@ -43,7 +43,7 @@ serve(async (req) => {
     });
 
     // Create a system prompt based on user preferences
-    const systemPrompt = `You are an AI tutor with expertise in education and learning.
+    let systemPrompt = `You are an AI tutor with expertise in education and learning.
     Adapt your responses based on these student preferences:
     - Learning style: ${userPreferences?.learningStyle || 'visual'}
     - Difficulty level: ${userPreferences?.difficulty || 'intermediate'}
@@ -51,11 +51,12 @@ serve(async (req) => {
     
     Your goal is to be helpful, clear, and educational. Provide examples and analogies
     that match the student's learning style. Focus on accuracy and depth appropriate
-    for their level.
+    for their level.`;
 
-    If the user encounters any connection issues, gracefully handle them with suggestions for
-    common study techniques or learning methods.
-    `;
+    // Add subject focus if available
+    if (userPreferences?.subjects && userPreferences.subjects.length > 0) {
+      systemPrompt += `\nYou specialize in these subjects: ${userPreferences.subjects.join(', ')}.`;
+    }
 
     console.log("Calling OpenAI API with query:", query);
     
@@ -68,7 +69,8 @@ serve(async (req) => {
           { role: "user", content: query }
         ],
         max_tokens: 1000,
-        timeout: 15000, // 15 seconds timeout
+        temperature: 0.7,
+        timeout: 20000, // 20 seconds timeout for better reliability
       });
 
       const aiResponse = chatCompletion.choices[0].message.content;
@@ -81,20 +83,58 @@ serve(async (req) => {
     } catch (openAiError) {
       console.error("OpenAI API error:", openAiError);
       
-      // Fallback response for OpenAI-specific errors
-      const fallbackTips = [
-        "To improve your study sessions, try the Pomodoro technique: 25 minutes of focused study followed by a 5-minute break.",
-        "Visual learners benefit from mind maps and diagrams. Kinesthetic learners do better with hands-on activities.",
-        "Spaced repetition is more effective than cramming. Review material at increasing intervals to improve retention.",
-        "Teaching concepts to others is one of the most effective ways to solidify your understanding.",
-        "Set specific, measurable goals for each study session rather than vague objectives."
+      // Check for specific error types to provide better feedback
+      let errorMessage = "I'm having trouble processing your request right now.";
+      
+      if (openAiError.status === 429) {
+        errorMessage = "I've reached my capacity at the moment. Please try again in a few minutes.";
+      } else if (openAiError.status >= 500) {
+        errorMessage = "My knowledge service is experiencing issues. Please try again shortly.";
+      }
+      
+      // Enhanced fallback response with educational content
+      const fallbackResponses = [
+        {
+          topic: "general",
+          response: `${errorMessage} In the meantime, here's a study tip: The "Feynman Technique" involves explaining concepts in simple language as if teaching someone else. This helps identify gaps in your understanding.`
+        },
+        {
+          topic: "mathematics",
+          response: `${errorMessage} While you wait, consider this math study approach: Practice active recall by closing your book and attempting to solve problems from memory, then check your work.`
+        },
+        {
+          topic: "history",
+          response: `${errorMessage} Here's a history study tip: Create timelines that connect events, people and causes to help visualize how historical events relate to each other.`
+        },
+        {
+          topic: "science",
+          response: `${errorMessage} For science topics, try this: After learning a concept, imagine how you would design an experiment to test or demonstrate it. This reinforces understanding of scientific principles.`
+        },
+        {
+          topic: "languages",
+          response: `${errorMessage} Language learning tip: Use spaced repetition - review words and phrases at increasing intervals over time rather than cramming, which leads to better long-term retention.`
+        }
       ];
       
-      const randomTip = fallbackTips[Math.floor(Math.random() * fallbackTips.length)];
+      // Select a relevant fallback based on query content if possible
+      const queryLower = query.toLowerCase();
+      let relevantFallback = fallbackResponses[0]; // Default to general
+
+      if (queryLower.includes("math") || queryLower.includes("equation") || queryLower.includes("calculus")) {
+        relevantFallback = fallbackResponses[1];
+      } else if (queryLower.includes("history") || queryLower.includes("century") || queryLower.includes("war")) {
+        relevantFallback = fallbackResponses[2];
+      } else if (queryLower.includes("science") || queryLower.includes("chemistry") || queryLower.includes("physics")) {
+        relevantFallback = fallbackResponses[3];
+      } else if (queryLower.includes("language") || queryLower.includes("speak") || queryLower.includes("grammar")) {
+        relevantFallback = fallbackResponses[4];
+      }
       
       return new Response(
         JSON.stringify({ 
-          response: `I'm having trouble processing your specific question right now, but here's a helpful study tip: ${randomTip}\n\nPlease try asking a different question.` 
+          response: relevantFallback.response,
+          error: true,
+          errorType: openAiError.status || "unknown"
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
       );
@@ -103,7 +143,9 @@ serve(async (req) => {
     console.error("Error processing request:", error);
     return new Response(
       JSON.stringify({ 
-        response: "I apologize, but I'm experiencing a technical issue. Please try asking a different question or try again in a moment." 
+        response: "I apologize, but I'm experiencing a technical issue. Please try asking a different question or try again in a moment.",
+        error: true,
+        errorType: "server"
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     );
