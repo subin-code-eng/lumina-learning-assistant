@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,6 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import ReactMarkdown from 'react-markdown';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // Types for chat messages
 interface Message {
@@ -55,6 +55,7 @@ const AITutor: React.FC = () => {
   const [showTutorPreferences, setShowTutorPreferences] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [connectionAttempts, setConnectionAttempts] = useState(0);
+  const [isCheckingConnection, setIsCheckingConnection] = useState(false);
   
   // User learning preferences
   const [userPreferences, setUserPreferences] = useState<UserPreference>({
@@ -76,7 +77,7 @@ const AITutor: React.FC = () => {
 
   // Connection recovery
   useEffect(() => {
-    if (apiError && connectionAttempts > 0) {
+    if (apiError && connectionAttempts > 0 && !isCheckingConnection) {
       const timer = setTimeout(() => {
         // Try to ping the function to see if it's back online
         checkAPIConnection();
@@ -84,10 +85,11 @@ const AITutor: React.FC = () => {
       
       return () => clearTimeout(timer);
     }
-  }, [apiError, connectionAttempts]);
+  }, [apiError, connectionAttempts, isCheckingConnection]);
   
   const checkAPIConnection = async () => {
     try {
+      setIsCheckingConnection(true);
       const { data, error } = await supabase.functions.invoke('ai-tutor', {
         body: {
           query: "Are you online?",
@@ -111,10 +113,18 @@ const AITutor: React.FC = () => {
         };
         
         setMessages(prev => [...prev, systemMessage]);
+        toast.success("AI connection restored", {
+          description: "You can now continue your conversation"
+        });
+      } else {
+        // Still having issues
+        setConnectionAttempts(prev => prev + 1);
       }
     } catch (error) {
       console.error("Still having connection issues:", error);
       setConnectionAttempts(prev => prev + 1);
+    } finally {
+      setIsCheckingConnection(false);
     }
   };
   
@@ -133,10 +143,15 @@ const AITutor: React.FC = () => {
           setCurrentTopic('history');
         } else if (userText.includes('science') || userText.includes('biology') || userText.includes('physics')) {
           setCurrentTopic('science');
+        } else if (userText.includes('language') || userText.includes('grammar') || userText.includes('vocabulary')) {
+          setCurrentTopic('languages');
         }
         
-        // Update conversation context
-        setConversationContext(prev => [...prev, lastUserMessage.text]);
+        // Update conversation context (keep last 5 messages for context)
+        setConversationContext(prev => {
+          const updated = [...prev, lastUserMessage.text];
+          return updated.slice(-5);
+        });
       }
     }
   }, [messages]);
@@ -160,9 +175,13 @@ const AITutor: React.FC = () => {
       
       try {
         // Create a properly typed parameter object for the RPC call
+        const conversationTitle = currentTopic 
+          ? `${currentTopic.charAt(0).toUpperCase() + currentTopic.slice(1)} Chat - ${new Date().toLocaleDateString()}`
+          : `Study Session - ${new Date().toLocaleDateString()}`;
+          
         const rpcParams = {
           p_user_id: user.id,
-          p_conversation_title: `Conversation ${new Date().toLocaleDateString()}`,
+          p_conversation_title: conversationTitle,
           p_messages: JSON.parse(JSON.stringify(messages)) // Serialize and deserialize to ensure proper JSON format
         };
         
@@ -174,10 +193,10 @@ const AITutor: React.FC = () => {
       }
     };
     
-    // Save conversation when it's updated
+    // Save conversation when it's updated (debounced)
     const saveTimeout = setTimeout(saveConversationToServer, 2000);
     return () => clearTimeout(saveTimeout);
-  }, [messages, user]);
+  }, [messages, user, currentTopic]);
 
   // Suggested prompts based on learning style and preferences
   const generateSuggestedPrompts = () => {
@@ -201,8 +220,8 @@ const AITutor: React.FC = () => {
     return basePrompts;
   };
 
-  // Function to call the AI API
-  const callAIEndpoint = async (userQuery: string): Promise<string> => {
+  // Function to call the AI API with retry logic
+  const callAIEndpoint = async (userQuery: string, retryCount = 0): Promise<{response: string, error?: boolean, errorType?: string}> => {
     try {
       setApiError(null);
       const { data, error } = await supabase.functions.invoke('ai-tutor', {
@@ -217,22 +236,49 @@ const AITutor: React.FC = () => {
         console.error('Error calling AI endpoint:', error);
         setConnectionAttempts(prev => prev + 1);
         setApiError("Connection issue. Please try again.");
-        return "I'm having trouble connecting to my knowledge base right now. Could you try with a different question?";
+        return { 
+          response: "I'm having trouble connecting to my knowledge base right now. Let me try to give a general answer to your question.", 
+          error: true, 
+          errorType: "connection" 
+        };
       }
       
       if (!data?.response) {
         setApiError("No response received from AI service.");
-        return "I'm having trouble processing your request right now. Please try again in a moment.";
+        return { 
+          response: "I'm having trouble processing your request right now. Please try again in a moment.",
+          error: true,
+          errorType: "noResponse"
+        };
+      }
+      
+      // Check if the response indicates an error
+      if (data.error) {
+        console.log("Received error response from AI service:", data.errorType);
+        setApiError(`AI service error: ${data.errorType}`);
+        return data;
       }
       
       // Reset connection attempts on successful response
       setConnectionAttempts(0);
-      return data.response;
+      return data;
     } catch (error) {
       console.error('Error calling AI endpoint:', error);
+      
+      // Implement retry mechanism for network errors
+      if (retryCount < 2) {
+        console.log(`Retrying AI request (attempt ${retryCount + 1})...`);
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+        return callAIEndpoint(userQuery, retryCount + 1);
+      }
+      
       setConnectionAttempts(prev => prev + 1);
       setApiError("Technical issue. Please try again later.");
-      return "I apologize for the inconvenience. My systems are experiencing some temporary issues. Let's try a different approach - ask me about general study techniques or learning methods.";
+      return { 
+        response: "I apologize for the inconvenience. My systems are experiencing some temporary issues. Let's try a different approach - ask me about general study techniques or learning methods.", 
+        error: true,
+        errorType: "technical" 
+      };
     }
   };
 
@@ -272,12 +318,24 @@ const AITutor: React.FC = () => {
         setIsThinking(false);
         
         // Call AI API and simulate typing the response
-        callAIEndpoint(messageText).then(aiResponse => {
-          simulateTypingResponse(aiResponse);
+        callAIEndpoint(messageText).then(aiResponseData => {
+          const aiResponse = aiResponseData.response || "I'm having trouble generating a response right now.";
+          
+          // If this was an error response, set a special flag
+          const wasError = !!aiResponseData.error;
+          
+          simulateTypingResponse(aiResponse, wasError);
+          
+          // If there was an API error but we're showing a fallback response, notify the user
+          if (wasError) {
+            toast.warning("AI service issue", {
+              description: "Using fallback response mode. Some answers may be generic."
+            });
+          }
         }).catch(error => {
           console.error("Error getting AI response:", error);
           setApiError("Failed to get AI response.");
-          simulateTypingResponse("I'm having trouble processing your request. Please try again.");
+          simulateTypingResponse("I'm having trouble processing your request. Please try again.", true);
         });
       }, 700 + Math.random() * 800); // Random thinking time between 0.7-1.5s
     } catch (error) {
@@ -291,10 +349,13 @@ const AITutor: React.FC = () => {
     }
   };
 
-  const simulateTypingResponse = (fullResponse: string) => {
+  const simulateTypingResponse = (fullResponse: string, isErrorResponse: boolean = false) => {
     const words = fullResponse.split(' ');
     let currentResponse = '';
     let wordIndex = 0;
+    
+    // Typing speed adjusts based on response length
+    const typingSpeed = Math.max(10, Math.min(30, 20 - Math.floor(words.length / 50)));
     
     // Temporary message for typing effect
     const typingMessageId = Date.now().toString();
@@ -303,7 +364,7 @@ const AITutor: React.FC = () => {
       text: '',
       sender: 'ai',
       timestamp: new Date(),
-      type: 'standard'
+      type: isErrorResponse ? 'feedback' : 'standard'
     };
     
     setMessages(prev => [...prev, typingMessage]);
@@ -328,13 +389,13 @@ const AITutor: React.FC = () => {
         setIsTyping(false);
         
         // After a short delay, add follow-up questions if appropriate
-        if (Math.random() > 0.4) { // 60% chance of follow-up
+        if (!isErrorResponse && Math.random() > 0.4) { // 60% chance of follow-up when not an error
           setTimeout(() => {
             addFollowUpMessage();
           }, 1000);
         }
       }
-    }, 20); // Speed of typing (faster than before)
+    }, typingSpeed); // Speed of typing adjusted based on response length
   };
 
   const addFollowUpMessage = () => {
@@ -483,7 +544,7 @@ const AITutor: React.FC = () => {
               <Sparkles className="h-4 w-4 text-primary-foreground" />
             </Avatar>
             <div>
-              <CardTitle className="text-lg">Interactive AI Tutor</CardTitle>
+              <CardTitle className="text-lg">Interactive Study Buddy</CardTitle>
               <CardDescription className="text-xs flex items-center gap-1">
                 <Lightbulb className="h-3 w-3" /> 
                 Personalized learning assistant
@@ -593,8 +654,17 @@ const AITutor: React.FC = () => {
                 size="sm" 
                 onClick={handleRetryConnection}
                 className="mt-1 w-fit"
+                disabled={isCheckingConnection}
               >
-                <RefreshCw className="h-3 w-3 mr-1" /> Try reconnecting
+                {isCheckingConnection ? (
+                  <>
+                    <RefreshCw className="h-3 w-3 mr-1 animate-spin" /> Checking connection...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-3 w-3 mr-1" /> Try reconnecting
+                  </>
+                )}
               </Button>
             </AlertDescription>
           </Alert>
@@ -637,7 +707,9 @@ const AITutor: React.FC = () => {
                         className={`rounded-lg p-3 text-sm ${
                           msg.sender === 'user' 
                             ? 'bg-secondary text-secondary-foreground' 
-                            : 'bg-muted text-foreground'
+                            : msg.type === 'feedback'
+                              ? 'bg-muted/80 text-foreground border border-amber-300/30'
+                              : 'bg-muted text-foreground'
                         }`}
                       >
                         {currentTopic && msg.sender === 'ai' && !msg.text.startsWith("That's an interesting") && (
@@ -663,7 +735,11 @@ const AITutor: React.FC = () => {
                         <span>{formatTime(msg.timestamp)}</span>
                         {msg.sender === 'ai' && (
                           <span className="ml-2 flex items-center">
-                            <Heart className="h-3 w-3 text-red-400 mr-1" />
+                            {msg.type === 'feedback' ? (
+                              <AlertCircle className="h-3 w-3 text-amber-400 mr-1" /> 
+                            ) : (
+                              <Heart className="h-3 w-3 text-red-400 mr-1" />
+                            )}
                             <span className="sr-only">Learning assistant</span>
                           </span>
                         )}
@@ -673,6 +749,7 @@ const AITutor: React.FC = () => {
                 )}
               </div>
             ))}
+
             {isThinking && (
               <div className="flex justify-start">
                 <div className="flex gap-2">
@@ -687,6 +764,7 @@ const AITutor: React.FC = () => {
                 </div>
               </div>
             )}
+            
             {isTyping && !isThinking && (
               <div className="flex justify-start">
                 <div className="flex gap-2">
