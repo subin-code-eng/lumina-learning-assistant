@@ -37,7 +37,7 @@ const AITutor: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      text: "Hello! I'm your AI study partner. How can I help with your studies today? I can explain difficult concepts, help you prepare for exams, or answer specific questions about your courses.",
+      text: "Hi! I'm your AI tutor. What topic are you learning today? And what's your current level — beginner, intermediate, or advanced?",
       sender: 'ai',
       timestamp: new Date(),
       type: 'standard'
@@ -513,7 +513,7 @@ const AITutor: React.FC = () => {
     setMessages([
       {
         id: '1',
-        text: "Hello! I'm your AI study partner. How can I help with your studies today?",
+        text: "Hi! I'm your AI tutor. What topic are you learning today? And what's your current level — beginner, intermediate, or advanced?",
         sender: 'ai',
         timestamp: new Date(),
         type: 'standard'
@@ -696,10 +696,7 @@ const AITutor: React.FC = () => {
                       {msg.sender === 'user' ? (
                         <AvatarFallback>U</AvatarFallback>
                       ) : (
-                        <>
-                          <AvatarFallback>AI</AvatarFallback>
-                          <Sparkles className="h-4 w-4" />
-                        </>
+                        <AvatarFallback>AI</AvatarFallback>
                       )}
                     </Avatar>
                     <div className="space-y-1">
@@ -755,7 +752,6 @@ const AITutor: React.FC = () => {
                 <div className="flex gap-2">
                   <Avatar className="bg-primary h-8 w-8">
                     <AvatarFallback>AI</AvatarFallback>
-                    <Sparkles className="h-4 w-4" />
                   </Avatar>
                   <div className="rounded-lg bg-muted p-3 text-sm flex items-center">
                     <RefreshCw className="h-4 w-4 animate-spin" />
@@ -770,7 +766,6 @@ const AITutor: React.FC = () => {
                 <div className="flex gap-2">
                   <Avatar className="bg-primary h-8 w-8">
                     <AvatarFallback>AI</AvatarFallback>
-                    <Sparkles className="h-4 w-4" />
                   </Avatar>
                   <div className="rounded-lg bg-muted p-3 text-sm flex items-center">
                     <div className="flex space-x-1">
