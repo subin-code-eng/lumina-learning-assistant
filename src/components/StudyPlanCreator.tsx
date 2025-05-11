@@ -5,11 +5,12 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { toast } from '@/components/ui/sonner';
-import { Calendar, Clock, BookOpen, RefreshCw, Check } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
+import { Calendar, Clock, BookOpen, RefreshCw, Check, FileText, Plus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface StudyPlan {
   id: string;
@@ -32,6 +33,8 @@ const StudyPlanCreator: React.FC = () => {
   const [recentPlans, setRecentPlans] = useState<StudyPlan[]>([]);
   const [showSuccess, setShowSuccess] = useState(false);
   const [loadingPlans, setLoadingPlans] = useState(false);
+  const [showPlans, setShowPlans] = useState(false);
+  const [allStudyPlans, setAllStudyPlans] = useState<StudyPlan[]>([]);
   
   // Map duration selections to days
   const durationMap: Record<string, string> = {
@@ -71,17 +74,51 @@ const StudyPlanCreator: React.FC = () => {
     fetchRecentPlans();
   }, [user, showSuccess]);
 
+  // Fetch all study plans
+  const fetchAllStudyPlans = async () => {
+    if (!user) return;
+    
+    setLoadingPlans(true);
+    try {
+      const { data, error } = await supabase
+        .from('study_plans')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+        
+      if (error) throw error;
+      
+      if (data) {
+        setAllStudyPlans(data);
+        setShowPlans(true);
+      }
+    } catch (error) {
+      console.error('Error fetching all study plans:', error);
+      toast({
+        title: "Failed to load study plans",
+        description: "Please try again later",
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingPlans(false);
+    }
+  };
+
   const handleCreatePlan = async () => {
     if (!user) {
-      toast.error("Authentication required", {
-        description: "Please login to create a study plan"
+      toast({
+        title: "Authentication required",
+        description: "Please login to create a study plan",
+        variant: "destructive"
       });
       return;
     }
     
     if (!subject.trim()) {
-      toast.error("Subject required", {
-        description: "Please enter a subject for your study plan"
+      toast({
+        title: "Subject required",
+        description: "Please enter a subject for your study plan",
+        variant: "destructive"
       });
       return;
     }
@@ -106,8 +143,16 @@ const StudyPlanCreator: React.FC = () => {
         throw error;
       }
       
-      // Show success state
+      // Show success state and play sound
       setShowSuccess(true);
+      playSuccessSound();
+      
+      // Show success toast
+      toast({
+        title: "Study Plan Created!",
+        description: `Your ${subject} study plan has been created successfully.`,
+        variant: "default",
+      });
       
       // Reset success state after 5 seconds
       setTimeout(() => {
@@ -122,12 +167,21 @@ const StudyPlanCreator: React.FC = () => {
       setDuration('14');
     } catch (error) {
       console.error('Error creating study plan:', error);
-      toast.error("Failed to create study plan", {
-        description: "Please try again later"
+      toast({
+        title: "Failed to create study plan",
+        description: "Please try again later",
+        variant: "destructive"
       });
     } finally {
       setLoading(false);
     }
+  };
+  
+  // Play success sound
+  const playSuccessSound = () => {
+    const audio = new Audio('/success.mp3');
+    audio.volume = 0.5;
+    audio.play().catch(err => console.error("Could not play sound:", err));
   };
   
   // Format date to readable format
@@ -251,12 +305,23 @@ const StudyPlanCreator: React.FC = () => {
         {/* Recent Study Plans */}
         {recentPlans.length > 0 && (
           <div className="pt-4">
-            <h3 className="text-sm font-medium mb-2">Your Recent Study Plans</h3>
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-sm font-medium">Your Recent Study Plans</h3>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={fetchAllStudyPlans}
+                disabled={loadingPlans}
+              >
+                <FileText className="mr-1 h-4 w-4" />
+                View All Plans
+              </Button>
+            </div>
             <div className="space-y-2">
               {recentPlans.map((plan) => (
                 <div 
                   key={plan.id} 
-                  className="p-2 border rounded-lg text-sm hover:bg-muted/50 transition-colors"
+                  className="p-3 border rounded-lg text-sm hover:bg-muted/50 transition-colors"
                 >
                   <div className="font-medium">{plan.title}</div>
                   <div className="text-xs text-muted-foreground flex justify-between">
@@ -265,6 +330,44 @@ const StudyPlanCreator: React.FC = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+        
+        {/* All Study Plans Table */}
+        {showPlans && allStudyPlans.length > 0 && (
+          <div className="pt-4 border-t mt-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-base font-medium">All Study Plans</h3>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setShowPlans(false)}
+              >
+                Hide Plans
+              </Button>
+            </div>
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Subject</TableHead>
+                    <TableHead>Difficulty</TableHead>
+                    <TableHead>Duration</TableHead>
+                    <TableHead>Created</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {allStudyPlans.map((plan) => (
+                    <TableRow key={plan.id}>
+                      <TableCell>{plan.subject}</TableCell>
+                      <TableCell>{plan.difficulty}</TableCell>
+                      <TableCell>{plan.duration_days} days</TableCell>
+                      <TableCell>{formatDate(plan.created_at)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           </div>
         )}
@@ -287,7 +390,10 @@ const StudyPlanCreator: React.FC = () => {
               Creating your plan...
             </>
           ) : (
-            'Generate AI Study Plan'
+            <>
+              <Plus className="mr-2 h-4 w-4" />
+              Generate AI Study Plan
+            </>
           )}
         </Button>
       </CardFooter>
