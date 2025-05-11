@@ -1,3 +1,4 @@
+
 import * as React from "react"
 
 import type {
@@ -5,8 +6,8 @@ import type {
   ToastProps,
 } from "@/components/ui/toast"
 
-const TOAST_LIMIT = 1
-const TOAST_REMOVE_DELAY = 1000000
+const TOAST_LIMIT = 3
+const TOAST_REMOVE_DELAY = 5000
 
 type ToasterToast = ToastProps & {
   id: string
@@ -167,6 +168,12 @@ function toast({ ...props }: Toast) {
     update,
   }
 }
+
+// Add convenience methods
+toast.success = (title: string, props?: Omit<Toast, "title">) => toast({ title, variant: "default", ...props });
+toast.error = (title: string, props?: Omit<Toast, "title">) => toast({ title, variant: "destructive", ...props });
+toast.warning = (title: string, props?: Omit<Toast, "title">) => toast({ title, variant: "default", className: "border-yellow-500", ...props });
+toast.info = (title: string, props?: Omit<Toast, "title">) => toast({ title, variant: "default", className: "border-blue-500", ...props });
 
 function useToast() {
   const [state, setState] = React.useState<State>(memoryState)

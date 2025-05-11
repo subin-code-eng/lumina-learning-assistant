@@ -13,6 +13,7 @@ const Settings: React.FC = () => {
   const [darkMode, setDarkMode] = useState(false);
   const [notifications, setNotifications] = useState(true);
   const [soundEffects, setSoundEffects] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Check for system preference or saved preference on mount
   useEffect(() => {
@@ -22,8 +23,8 @@ const Settings: React.FC = () => {
       try {
         const settings = JSON.parse(savedSettings);
         setDarkMode(settings.darkMode);
-        setNotifications(settings.notifications);
-        setSoundEffects(settings.soundEffects);
+        setNotifications(settings.notifications !== undefined ? settings.notifications : true);
+        setSoundEffects(settings.soundEffects !== undefined ? settings.soundEffects : true);
         
         // Apply dark mode to document if needed
         if (settings.darkMode) {
@@ -33,35 +34,60 @@ const Settings: React.FC = () => {
         }
       } catch (error) {
         console.error("Error parsing saved settings:", error);
+        // Set defaults if there's an error
+        setDefaults();
       }
     } else {
-      // Check for system preference if no saved setting
-      const prefersDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      setDarkMode(prefersDarkMode);
-      if (prefersDarkMode) {
-        document.documentElement.classList.add('dark');
-      }
+      setDefaults();
     }
   }, []);
 
-  const handleSaveSettings = () => {
-    // In a real app, you would save these to a user's profile in the database
-    localStorage.setItem('appSettings', JSON.stringify({
-      darkMode,
-      notifications,
-      soundEffects
-    }));
-    
-    // Apply dark mode immediately
-    if (darkMode) {
+  const setDefaults = () => {
+    // Check for system preference if no saved setting
+    const prefersDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    setDarkMode(prefersDarkMode);
+    setNotifications(true);
+    setSoundEffects(true);
+    if (prefersDarkMode) {
       document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
     }
-    
-    toast.success("Settings saved", {
-      description: "Your preferences have been updated"
-    });
+  };
+
+  const handleSaveSettings = () => {
+    setIsLoading(true);
+    try {
+      // Save to localStorage
+      const settings = {
+        darkMode,
+        notifications,
+        soundEffects
+      };
+      localStorage.setItem('appSettings', JSON.stringify(settings));
+      
+      // Apply dark mode immediately
+      if (darkMode) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+      
+      // Play a sound if sound effects are enabled
+      if (soundEffects) {
+        playSuccessSound();
+      }
+
+      // Show notification if notifications are enabled
+      toast.success("Settings saved", {
+        description: "Your preferences have been updated"
+      });
+    } catch (error) {
+      console.error("Error saving settings:", error);
+      toast.error("Failed to save settings", {
+        description: "Please try again"
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const toggleDarkMode = (checked: boolean) => {
@@ -71,6 +97,61 @@ const Settings: React.FC = () => {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
+    }
+    
+    // Play a toggle sound if sound effects are enabled
+    if (soundEffects) {
+      playToggleSound();
+    }
+  };
+
+  const toggleNotifications = (checked: boolean) => {
+    setNotifications(checked);
+    
+    // Play a toggle sound if sound effects are enabled
+    if (soundEffects) {
+      playToggleSound();
+    }
+    
+    // Show example notification if enabling notifications
+    if (checked) {
+      setTimeout(() => {
+        toast.info("Notifications enabled", {
+          description: "You will now receive study reminders"
+        });
+      }, 500);
+    }
+  };
+
+  const toggleSoundEffects = (checked: boolean) => {
+    setSoundEffects(checked);
+    
+    // Play a sound immediately to demonstrate the setting
+    if (checked) {
+      playToggleSound();
+    }
+  };
+
+  // Simple sound effect functions
+  const playToggleSound = () => {
+    try {
+      const audio = new Audio();
+      audio.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA/+M4wAAAAAAAAAAAAEluZm8AAAAPAAAAAwAAADIAEBAAAAYABgsOERQXGhweIiUoKy4xNDc6PT9CRUhLTlFTV1pTVVhbXmFkZ2ptbXF0d3p9gIOGiYyPkpaYCQkMDxIVGBseICMmKSwvMjU4Oz5BREZJTFBTVlldYGNmaGxvcHN2eXyAg4aJjJCTlpcAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/+MYxAAAAANIAAAAAExBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQAA';
+      audio.volume = 0.2;
+      audio.play();
+    } catch (error) {
+      console.error("Error playing sound:", error);
+    }
+  };
+
+  const playSuccessSound = () => {
+    try {
+      const audio = new Audio();
+      audio.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA/+M4wAAAAAAAAAAAAEluZm8AAAAPAAAAAwAAADIAEBAAAAwADB8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/+MYxAAAAANIAAAAAExBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQAA';
+      audio.volume = 0.3;
+      audio.play();
+    } catch (error) {
+      console.error("Error playing sound:", error);
     }
   };
 
@@ -116,7 +197,7 @@ const Settings: React.FC = () => {
             </div>
             <Switch 
               checked={notifications}
-              onCheckedChange={setNotifications}
+              onCheckedChange={toggleNotifications}
             />
           </div>
           
@@ -131,7 +212,7 @@ const Settings: React.FC = () => {
               <VolumeX className="h-4 w-4 text-muted-foreground" />
               <Switch 
                 checked={soundEffects}
-                onCheckedChange={setSoundEffects}
+                onCheckedChange={toggleSoundEffects}
               />
               <Volume2 className="h-4 w-4 text-muted-foreground" />
             </div>
@@ -166,8 +247,8 @@ const Settings: React.FC = () => {
         </div>
       </CardContent>
       <CardFooter className="flex justify-end">
-        <Button onClick={handleSaveSettings}>
-          Save Preferences
+        <Button onClick={handleSaveSettings} disabled={isLoading}>
+          {isLoading ? "Saving..." : "Save Preferences"}
         </Button>
       </CardFooter>
     </Card>
