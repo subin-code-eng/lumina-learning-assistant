@@ -14,6 +14,7 @@ import Gamification from '@/components/Gamification';
 import QuizGenerator from '@/components/QuizGenerator';
 import Profile from '@/components/Profile';
 import Settings from '@/components/Settings';
+import RefreshmentBreak from '@/components/RefreshmentBreak';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -82,6 +83,9 @@ const Index = () => {
                 <div className="space-y-6">
                   {/* Today's Tasks */}
                   <TodaysTasks />
+                  
+                  {/* Add Refreshment Break */}
+                  <RefreshmentBreak defaultBreakTime={5} />
                 </div>
                 
                 <div className="space-y-6">
