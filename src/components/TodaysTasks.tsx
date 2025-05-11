@@ -1,8 +1,22 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Calendar, Clock } from 'lucide-react';
+import { Calendar, Clock, Plus } from 'lucide-react';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
+import { useForm } from 'react-hook-form';
+import { useToast } from "@/hooks/use-toast";
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+
+// Define the schema for task validation
+const addTaskSchema = z.object({
+  title: z.string().min(3, { message: "Task title must be at least 3 characters" }),
+  time: z.string().min(5, { message: "Time is required" }),
+  subject: z.string().min(1, { message: "Subject is required" }),
+});
 
 interface Task {
   id: string;
@@ -13,7 +27,9 @@ interface Task {
 }
 
 const TodaysTasks: React.FC = () => {
-  const [tasks, setTasks] = React.useState<Task[]>([
+  const { toast } = useToast();
+  const [showForm, setShowForm] = useState(false);
+  const [tasks, setTasks] = useState<Task[]>([
     { 
       id: '1', 
       title: 'Review Organic Chemistry Notes', 
@@ -44,10 +60,46 @@ const TodaysTasks: React.FC = () => {
     },
   ]);
 
+  const form = useForm<z.infer<typeof addTaskSchema>>({
+    resolver: zodResolver(addTaskSchema),
+    defaultValues: {
+      title: '',
+      time: '',
+      subject: '',
+    },
+  });
+
   const toggleTaskCompletion = (taskId: string) => {
     setTasks(tasks.map(task => 
       task.id === taskId ? { ...task, completed: !task.completed } : task
     ));
+  };
+
+  const onSubmit = (data: z.infer<typeof addTaskSchema>) => {
+    // Generate a random ID (in a real app, this would come from the backend)
+    const newId = Math.random().toString(36).substring(2, 9);
+    
+    // Create the new task
+    const newTask: Task = {
+      id: newId,
+      title: data.title,
+      time: data.time,
+      subject: data.subject,
+      completed: false
+    };
+    
+    // Add the new task to the list
+    setTasks([...tasks, newTask]);
+    
+    // Reset the form and hide it
+    form.reset();
+    setShowForm(false);
+    
+    // Show a success toast
+    toast({
+      title: "Task added",
+      description: "Your study task has been added successfully",
+    });
   };
 
   return (
@@ -55,13 +107,87 @@ const TodaysTasks: React.FC = () => {
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-xl font-semibold">Today's Study Tasks</CardTitle>
-          <div className="flex items-center text-muted-foreground text-sm">
-            <Calendar className="h-4 w-4 mr-1" />
-            {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+          <div className="flex items-center gap-4">
+            <div className="text-muted-foreground text-sm flex items-center">
+              <Calendar className="h-4 w-4 mr-1" />
+              {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+            </div>
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={() => setShowForm(!showForm)}
+            >
+              <Plus className="h-4 w-4 mr-1" /> 
+              Add Task
+            </Button>
           </div>
         </div>
       </CardHeader>
       <CardContent>
+        {showForm && (
+          <div className="mb-6 p-4 border rounded-lg">
+            <h3 className="font-medium mb-3">Add New Study Task</h3>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="title"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Task Title</FormLabel>
+                      <FormControl>
+                        <Input placeholder="E.g. Review Chapter 4 Notes" {...field} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="time"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Time</FormLabel>
+                        <FormControl>
+                          <Input placeholder="E.g. 2:00 - 3:30 PM" {...field} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="subject"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Subject</FormLabel>
+                        <FormControl>
+                          <Input placeholder="E.g. Mathematics" {...field} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                
+                <div className="flex justify-end space-x-2">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => {
+                      form.reset();
+                      setShowForm(false);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit">Add Task</Button>
+                </div>
+              </form>
+            </Form>
+          </div>
+        )}
+
         <div className="space-y-4">
           {tasks.map((task) => (
             <div 
