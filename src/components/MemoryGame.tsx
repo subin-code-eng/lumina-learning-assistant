@@ -104,14 +104,14 @@ const MemoryGame: React.FC<MemoryGameProps> = ({ onClose, timeLimit = 180 }) => 
         );
         
         setMatchedPairs(prev => prev + 1);
-        setFlippedCards([]);
+        setFlippedCards([]); // Clear flipped cards array to allow next selections
         playSound('match');
       } else {
-        // No match
+        // No match - Flip back after delay
         setTimeout(() => {
           setCards(prevCards => 
             prevCards.map(card => 
-              flippedCards.includes(card.id) ? { ...card, flipped: false } : card
+              flippedCards.includes(card.id) && !card.matched ? { ...card, flipped: false } : card
             )
           );
           setFlippedCards([]);
