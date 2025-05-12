@@ -81,10 +81,10 @@ const MemoryGame: React.FC<MemoryGameProps> = ({ onClose, timeLimit = 180 }) => 
   
   // Check for game completion
   useEffect(() => {
-    if (matchedPairs === emojis.length && gameStarted) {
+    if (matchedPairs === emojis.length && gameStarted && !gameOver) {
       endGame(true);
     }
-  }, [matchedPairs, gameStarted]);
+  }, [matchedPairs, gameStarted, emojis.length, gameOver]);
   
   // Check for matches when two cards are flipped
   useEffect(() => {
@@ -118,6 +118,7 @@ const MemoryGame: React.FC<MemoryGameProps> = ({ onClose, timeLimit = 180 }) => 
         }, 800);
       }
       
+      // Increment moves counter
       setMoves(prev => prev + 1);
     }
   }, [flippedCards, cards]);
