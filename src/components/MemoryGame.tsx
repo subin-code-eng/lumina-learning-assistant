@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -40,16 +39,17 @@ const MemoryGame: React.FC<MemoryGameProps> = ({ onClose, timeLimit = 180 }) => 
   // Initialize game
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      // Create audio elements
       audioSuccess.current = new Audio('/success.mp3');
       audioFlip.current = new Audio('/flip.mp3');
       audioMatch.current = new Audio('/match.mp3');
       audioGameOver.current = new Audio('/gameover.mp3');
       
       // Preload audio
-      audioSuccess.current.load();
-      audioFlip.current.load();
-      audioMatch.current.load();
-      audioGameOver.current.load();
+      if (audioSuccess.current) audioSuccess.current.load();
+      if (audioFlip.current) audioFlip.current.load();
+      if (audioMatch.current) audioMatch.current.load();
+      if (audioGameOver.current) audioGameOver.current.load();
       
       // Reduce volume
       if (audioSuccess.current) audioSuccess.current.volume = 0.3;
@@ -93,33 +93,44 @@ const MemoryGame: React.FC<MemoryGameProps> = ({ onClose, timeLimit = 180 }) => 
       const firstCard = cards.find(card => card.id === firstCardId);
       const secondCard = cards.find(card => card.id === secondCardId);
       
-      if (firstCard && secondCard && firstCard.value === secondCard.value) {
-        // Match found
-        setCards(prevCards => 
-          prevCards.map(card => 
-            card.id === firstCardId || card.id === secondCardId
-              ? { ...card, matched: true, flipped: true }
-              : card
-          )
-        );
-        
-        setMatchedPairs(prev => prev + 1);
-        setFlippedCards([]); // Clear flipped cards array to allow next selections
-        playSound('match');
-      } else {
-        // No match - Flip back after delay
-        setTimeout(() => {
+      // Ensure we found both cards
+      if (firstCard && secondCard) {
+        // Check if the cards match
+        if (firstCard.value === secondCard.value) {
+          // Match found - update cards to be matched and stay flipped
           setCards(prevCards => 
             prevCards.map(card => 
-              flippedCards.includes(card.id) && !card.matched ? { ...card, flipped: false } : card
+              card.id === firstCardId || card.id === secondCardId
+                ? { ...card, matched: true, flipped: true }
+                : card
             )
           );
+          
+          // Increment matched pairs counter
+          setMatchedPairs(prev => prev + 1);
+          
+          // Clear flipped cards array to allow next selections
           setFlippedCards([]);
-        }, 800);
+          
+          // Play match sound
+          playSound('match');
+        } else {
+          // No match - Flip back after delay
+          setTimeout(() => {
+            setCards(prevCards => 
+              prevCards.map(card => 
+                (card.id === firstCardId || card.id === secondCardId) && !card.matched 
+                  ? { ...card, flipped: false } 
+                  : card
+              )
+            );
+            setFlippedCards([]);
+          }, 800);
+        }
+        
+        // Increment moves counter
+        setMoves(prev => prev + 1);
       }
-      
-      // Increment moves counter
-      setMoves(prev => prev + 1);
     }
   }, [flippedCards, cards]);
   
@@ -203,18 +214,28 @@ const MemoryGame: React.FC<MemoryGameProps> = ({ onClose, timeLimit = 180 }) => 
   
   const playSound = (type: 'flip' | 'match' | 'success' | 'gameover') => {
     try {
-      if (type === 'flip' && audioFlip.current) {
-        audioFlip.current.currentTime = 0;
-        audioFlip.current.play().catch(err => console.error('Error playing sound:', err));
-      } else if (type === 'match' && audioMatch.current) {
-        audioMatch.current.currentTime = 0;
-        audioMatch.current.play().catch(err => console.error('Error playing sound:', err));
-      } else if (type === 'success' && audioSuccess.current) {
-        audioSuccess.current.currentTime = 0;
-        audioSuccess.current.play().catch(err => console.error('Error playing sound:', err));
-      } else if (type === 'gameover' && audioGameOver.current) {
-        audioGameOver.current.currentTime = 0;
-        audioGameOver.current.play().catch(err => console.error('Error playing sound:', err));
+      let audioToPlay: HTMLAudioElement | null = null;
+      
+      switch(type) {
+        case 'flip':
+          audioToPlay = audioFlip.current;
+          break;
+        case 'match':
+          audioToPlay = audioMatch.current;
+          break;
+        case 'success':
+          audioToPlay = audioSuccess.current;
+          break;
+        case 'gameover':
+          audioToPlay = audioGameOver.current;
+          break;
+      }
+      
+      if (audioToPlay) {
+        audioToPlay.currentTime = 0;
+        audioToPlay.play().catch(err => {
+          console.error('Error playing sound:', err);
+        });
       }
     } catch (error) {
       console.error('Error playing sound:', error);
