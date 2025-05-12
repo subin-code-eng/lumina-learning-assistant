@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -27,6 +28,7 @@ const MemoryGame: React.FC<MemoryGameProps> = ({ onClose, timeLimit = 180 }) => 
   const [gameStarted, setGameStarted] = useState<boolean>(false);
   const [timeRemaining, setTimeRemaining] = useState<number>(timeLimit);
   const [gameOver, setGameOver] = useState<boolean>(false);
+  const [processingMatch, setProcessingMatch] = useState<boolean>(false);
   
   const audioSuccess = useRef<HTMLAudioElement | null>(null);
   const audioFlip = useRef<HTMLAudioElement | null>(null);
@@ -88,51 +90,63 @@ const MemoryGame: React.FC<MemoryGameProps> = ({ onClose, timeLimit = 180 }) => 
   
   // Check for matches when two cards are flipped
   useEffect(() => {
-    if (flippedCards.length === 2) {
-      const [firstCardId, secondCardId] = flippedCards;
-      const firstCard = cards.find(card => card.id === firstCardId);
-      const secondCard = cards.find(card => card.id === secondCardId);
-      
-      // Ensure we found both cards
-      if (firstCard && secondCard) {
-        // Check if the cards match
-        if (firstCard.value === secondCard.value) {
-          // Match found - update cards to be matched and stay flipped
+    // Skip if we're already processing a match or don't have 2 cards
+    if (processingMatch || flippedCards.length !== 2) return;
+    
+    // Start processing this match
+    setProcessingMatch(true);
+    
+    const [firstCardId, secondCardId] = flippedCards;
+    const firstCard = cards.find(card => card.id === firstCardId);
+    const secondCard = cards.find(card => card.id === secondCardId);
+    
+    // Ensure we found both cards
+    if (firstCard && secondCard) {
+      // Check if the cards match
+      if (firstCard.value === secondCard.value) {
+        // Match found - update cards to be matched and stay flipped
+        setCards(prevCards => 
+          prevCards.map(card => 
+            card.id === firstCardId || card.id === secondCardId
+              ? { ...card, matched: true, flipped: true }
+              : card
+          )
+        );
+        
+        // Increment matched pairs counter
+        setMatchedPairs(prev => prev + 1);
+        
+        // Clear flipped cards array to allow next selections
+        setFlippedCards([]);
+        
+        // Play match sound
+        playSound('match');
+        
+        // End match processing
+        setProcessingMatch(false);
+      } else {
+        // No match - Flip back after delay
+        setTimeout(() => {
           setCards(prevCards => 
             prevCards.map(card => 
-              card.id === firstCardId || card.id === secondCardId
-                ? { ...card, matched: true, flipped: true }
+              (card.id === firstCardId || card.id === secondCardId) && !card.matched 
+                ? { ...card, flipped: false } 
                 : card
             )
           );
-          
-          // Increment matched pairs counter
-          setMatchedPairs(prev => prev + 1);
-          
-          // Clear flipped cards array to allow next selections
           setFlippedCards([]);
-          
-          // Play match sound
-          playSound('match');
-        } else {
-          // No match - Flip back after delay
-          setTimeout(() => {
-            setCards(prevCards => 
-              prevCards.map(card => 
-                (card.id === firstCardId || card.id === secondCardId) && !card.matched 
-                  ? { ...card, flipped: false } 
-                  : card
-              )
-            );
-            setFlippedCards([]);
-          }, 800);
-        }
-        
-        // Increment moves counter
-        setMoves(prev => prev + 1);
+          setProcessingMatch(false);
+        }, 800);
       }
+      
+      // Increment moves counter
+      setMoves(prev => prev + 1);
+    } else {
+      // Something went wrong, reset state
+      setFlippedCards([]);
+      setProcessingMatch(false);
     }
-  }, [flippedCards, cards]);
+  }, [flippedCards, cards, processingMatch]);
   
   const initializeGame = () => {
     // Create pairs of cards with the same value
@@ -152,6 +166,7 @@ const MemoryGame: React.FC<MemoryGameProps> = ({ onClose, timeLimit = 180 }) => 
     setMoves(0);
     setTimeRemaining(timeLimit);
     setGameOver(false);
+    setProcessingMatch(false);
   };
   
   const handleCardClick = (cardId: number) => {
@@ -160,8 +175,8 @@ const MemoryGame: React.FC<MemoryGameProps> = ({ onClose, timeLimit = 180 }) => 
       setGameStarted(true);
     }
     
-    // Ignore clicks if game is over or if two cards are already flipped
-    if (gameOver || flippedCards.length >= 2) return;
+    // Ignore clicks if game is over or if two cards are already flipped or we're processing a match
+    if (gameOver || flippedCards.length >= 2 || processingMatch) return;
     
     const clickedCard = cards.find(card => card.id === cardId);
     
