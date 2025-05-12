@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -56,6 +57,7 @@ const AITutor: React.FC = () => {
   const [apiError, setApiError] = useState<string | null>(null);
   const [connectionAttempts, setConnectionAttempts] = useState(0);
   const [isCheckingConnection, setIsCheckingConnection] = useState(false);
+  const [retryTimeout, setRetryTimeout] = useState<number | null>(null);
   
   // User learning preferences
   const [userPreferences, setUserPreferences] = useState<UserPreference>({
@@ -75,15 +77,27 @@ const AITutor: React.FC = () => {
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
-  // Connection recovery
+  // Connection recovery with exponential backoff
   useEffect(() => {
     if (apiError && connectionAttempts > 0 && !isCheckingConnection) {
-      const timer = setTimeout(() => {
+      const backoffTime = Math.min(Math.pow(2, connectionAttempts) * 5000, 60000); // Exponential backoff capped at 1 minute
+      
+      if (retryTimeout) {
+        window.clearTimeout(retryTimeout);
+      }
+      
+      const timeout = window.setTimeout(() => {
         // Try to ping the function to see if it's back online
         checkAPIConnection();
-      }, 30000); // Check again after 30 seconds
+      }, backoffTime);
       
-      return () => clearTimeout(timer);
+      setRetryTimeout(timeout);
+      
+      return () => {
+        if (retryTimeout) {
+          window.clearTimeout(retryTimeout);
+        }
+      };
     }
   }, [apiError, connectionAttempts, isCheckingConnection]);
   
@@ -98,7 +112,7 @@ const AITutor: React.FC = () => {
         }
       });
       
-      if (!error && data?.response) {
+      if (!error && data?.response && !data?.error) {
         // Connection restored
         setApiError(null);
         setConnectionAttempts(0);
@@ -224,6 +238,11 @@ const AITutor: React.FC = () => {
   const callAIEndpoint = async (userQuery: string, retryCount = 0): Promise<{response: string, error?: boolean, errorType?: string}> => {
     try {
       setApiError(null);
+      
+      // Set up retry parameters
+      const maxRetries = 3;
+      
+      // Try the initial request
       const { data, error } = await supabase.functions.invoke('ai-tutor', {
         body: {
           query: userQuery,
@@ -255,6 +274,17 @@ const AITutor: React.FC = () => {
       // Check if the response indicates an error
       if (data.error) {
         console.log("Received error response from AI service:", data.errorType);
+        
+        // If it's a rate limit error and we're within our retry count, try again
+        if (data.errorType === "rate_limit" && retryCount < maxRetries) {
+          // Exponential backoff
+          const delay = Math.min(Math.pow(2, retryCount + 1) * 1000 + Math.random() * 1000, 8000);
+          console.log(`Rate limited, retrying in ${delay}ms (attempt ${retryCount + 1} of ${maxRetries})`);
+          
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return callAIEndpoint(userQuery, retryCount + 1);
+        }
+        
         setApiError(`AI service error: ${data.errorType}`);
         return data;
       }
@@ -266,9 +296,10 @@ const AITutor: React.FC = () => {
       console.error('Error calling AI endpoint:', error);
       
       // Implement retry mechanism for network errors
-      if (retryCount < 2) {
-        console.log(`Retrying AI request (attempt ${retryCount + 1})...`);
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+      if (retryCount < maxRetries) {
+        console.log(`Retrying AI request (attempt ${retryCount + 1} of ${maxRetries})...`);
+        const delay = Math.min(Math.pow(2, retryCount + 1) * 1000, 8000);
+        await new Promise(resolve => setTimeout(resolve, delay));
         return callAIEndpoint(userQuery, retryCount + 1);
       }
       

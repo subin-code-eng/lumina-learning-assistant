@@ -98,7 +98,7 @@ const MemoryGame: React.FC<MemoryGameProps> = ({ onClose, timeLimit = 180 }) => 
         setCards(prevCards => 
           prevCards.map(card => 
             card.id === firstCardId || card.id === secondCardId
-              ? { ...card, matched: true }
+              ? { ...card, matched: true, flipped: true }
               : card
           )
         );

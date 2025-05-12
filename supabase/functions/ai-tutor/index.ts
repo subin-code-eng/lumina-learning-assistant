@@ -145,29 +145,57 @@ serve(async (req) => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-      const chatCompletion = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...(conversationContext?.map(msg => ({ role: "user", content: msg })) || []),
-          { role: "user", content: query }
-        ],
-        max_tokens: 1000,
-        temperature: 0.7,
-      }, { signal: controller.signal });
+      // Add exponential backoff for rate limiting
+      let retryCount = 0;
+      const maxRetries = 3;
+      
+      while (retryCount <= maxRetries) {
+        try {
+          const chatCompletion = await openai.chat.completions.create({
+            model: "gpt-3.5-turbo",
+            messages: [
+              { role: "system", content: systemPrompt },
+              ...(conversationContext?.map(msg => ({ role: "user", content: msg })) || []),
+              { role: "user", content: query }
+            ],
+            max_tokens: 1000,
+            temperature: 0.7,
+          }, { signal: controller.signal });
 
-      clearTimeout(timeoutId);
+          clearTimeout(timeoutId);
 
-      const aiResponse = chatCompletion.choices[0].message.content;
-      console.log("Received AI response successfully");
+          const aiResponse = chatCompletion.choices[0].message.content;
+          console.log("Received AI response successfully");
 
-      return new Response(
-        JSON.stringify({ 
-          response: aiResponse,
-          success: true 
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+          return new Response(
+            JSON.stringify({ 
+              response: aiResponse,
+              success: true 
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (retryError) {
+          // Check if it's a rate limit error
+          if (retryError.status === 429) {
+            retryCount++;
+            
+            if (retryCount <= maxRetries) {
+              // Exponential backoff with jitter
+              const delay = Math.min(Math.pow(2, retryCount) * 1000 + Math.random() * 1000, 10000);
+              console.log(`Rate limited, retrying in ${delay}ms (attempt ${retryCount})`);
+              await new Promise(resolve => setTimeout(resolve, delay));
+              continue;
+            }
+          }
+          
+          // For other errors or if we've exhausted retries, throw to be caught by outer try/catch
+          throw retryError;
+        }
+      }
+
+      // If we've reached here, we've exhausted retries
+      throw new Error("Max retries reached for OpenAI API");
+      
     } catch (openAiError) {
       console.error("OpenAI API error:", openAiError);
       
