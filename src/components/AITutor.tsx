@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -76,6 +75,9 @@ const AITutor: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+
+  // Define the maxRetries constant that was missing
+  const maxRetries = 3;
 
   // Connection recovery with exponential backoff
   useEffect(() => {
@@ -239,8 +241,7 @@ const AITutor: React.FC = () => {
     try {
       setApiError(null);
       
-      // Set up retry parameters
-      const maxRetries = 3;
+      // Set up retry parameters (now maxRetries is defined above)
       
       // Try the initial request
       const { data, error } = await supabase.functions.invoke('ai-tutor', {
