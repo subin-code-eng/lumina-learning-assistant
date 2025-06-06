@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -41,23 +40,23 @@ const MemoryGame: React.FC<MemoryGameProps> = ({ onClose, timeLimit = 180 }) => 
   // Initialize game
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // Create audio elements
-      audioSuccess.current = new Audio('/success.mp3');
-      audioFlip.current = new Audio('/flip.mp3');
-      audioMatch.current = new Audio('/match.mp3');
-      audioGameOver.current = new Audio('/gameover.mp3');
-      
-      // Preload audio
-      if (audioSuccess.current) audioSuccess.current.load();
-      if (audioFlip.current) audioFlip.current.load();
-      if (audioMatch.current) audioMatch.current.load();
-      if (audioGameOver.current) audioGameOver.current.load();
-      
-      // Reduce volume
-      if (audioSuccess.current) audioSuccess.current.volume = 0.3;
-      if (audioFlip.current) audioFlip.current.volume = 0.2;
-      if (audioMatch.current) audioMatch.current.volume = 0.3;
-      if (audioGameOver.current) audioGameOver.current.volume = 0.3;
+      // Create audio elements with better error handling
+      try {
+        audioSuccess.current = new Audio('/success.mp3');
+        audioFlip.current = new Audio('/flip.mp3');
+        audioMatch.current = new Audio('/match.mp3');
+        audioGameOver.current = new Audio('/gameover.mp3');
+        
+        // Set volume and preload
+        [audioSuccess, audioFlip, audioMatch, audioGameOver].forEach(audioRef => {
+          if (audioRef.current) {
+            audioRef.current.volume = 0.3;
+            audioRef.current.preload = 'auto';
+          }
+        });
+      } catch (error) {
+        console.warn('Audio files not found, continuing without sound');
+      }
     }
     
     initializeGame();
@@ -90,77 +89,72 @@ const MemoryGame: React.FC<MemoryGameProps> = ({ onClose, timeLimit = 180 }) => 
   
   // Check for matches when two cards are flipped
   useEffect(() => {
-    // Skip if we're already processing a match or don't have 2 cards
-    if (processingMatch || flippedCards.length !== 2) return;
+    if (flippedCards.length !== 2 || processingMatch) return;
     
-    // Start processing this match
     setProcessingMatch(true);
     
     const [firstCardId, secondCardId] = flippedCards;
     const firstCard = cards.find(card => card.id === firstCardId);
     const secondCard = cards.find(card => card.id === secondCardId);
     
-    // Ensure we found both cards
-    if (firstCard && secondCard) {
-      // Check if the cards match
-      if (firstCard.value === secondCard.value) {
-        // Match found - update cards to be matched and stay flipped
+    if (!firstCard || !secondCard) {
+      setFlippedCards([]);
+      setProcessingMatch(false);
+      return;
+    }
+    
+    // Check if the cards match by comparing their emoji values
+    if (firstCard.emoji === secondCard.emoji) {
+      // Match found!
+      setTimeout(() => {
         setCards(prevCards => 
           prevCards.map(card => 
             card.id === firstCardId || card.id === secondCardId
-              ? { ...card, matched: true, flipped: true }
+              ? { ...card, matched: true }
               : card
           )
         );
         
-        // Increment matched pairs counter
         setMatchedPairs(prev => prev + 1);
-        
-        // Clear flipped cards array to allow next selections
         setFlippedCards([]);
-        
-        // Play match sound
-        playSound('match');
-        
-        // End match processing
+        setMoves(prev => prev + 1);
         setProcessingMatch(false);
-      } else {
-        // No match - Flip back after delay
-        setTimeout(() => {
-          setCards(prevCards => 
-            prevCards.map(card => 
-              (card.id === firstCardId || card.id === secondCardId) && !card.matched 
-                ? { ...card, flipped: false } 
-                : card
-            )
-          );
-          setFlippedCards([]);
-          setProcessingMatch(false);
-        }, 800);
-      }
-      
-      // Increment moves counter
-      setMoves(prev => prev + 1);
+        
+        playSound('match');
+      }, 500);
     } else {
-      // Something went wrong, reset state
-      setFlippedCards([]);
-      setProcessingMatch(false);
+      // No match - flip back after delay
+      setTimeout(() => {
+        setCards(prevCards => 
+          prevCards.map(card => 
+            (card.id === firstCardId || card.id === secondCardId) && !card.matched
+              ? { ...card, flipped: false }
+              : card
+          )
+        );
+        setFlippedCards([]);
+        setMoves(prev => prev + 1);
+        setProcessingMatch(false);
+      }, 1000);
     }
   }, [flippedCards, cards, processingMatch]);
   
   const initializeGame = () => {
-    // Create pairs of cards with the same value
-    const cardValues = [...emojis, ...emojis]
-      .map((value, index) => ({ 
-        id: index, 
-        value: Math.floor(index / 2).toString(),
+    // Create pairs of cards
+    const gameEmojis = emojis.slice(0, 6); // Use 6 pairs for 12 cards
+    const cardPairs = [...gameEmojis, ...gameEmojis];
+    
+    const shuffledCards = cardPairs
+      .map((emoji, index) => ({
+        id: index,
+        value: emoji,
+        emoji: emoji,
         flipped: false,
         matched: false,
-        emoji: value
       }))
-      .sort(() => Math.random() - 0.5); // Shuffle the cards
+      .sort(() => Math.random() - 0.5);
     
-    setCards(cardValues);
+    setCards(shuffledCards);
     setFlippedCards([]);
     setMatchedPairs(0);
     setMoves(0);
@@ -170,18 +164,15 @@ const MemoryGame: React.FC<MemoryGameProps> = ({ onClose, timeLimit = 180 }) => 
   };
   
   const handleCardClick = (cardId: number) => {
-    // Start game on first card click
     if (!gameStarted) {
       setGameStarted(true);
     }
     
-    // Ignore clicks if game is over or if two cards are already flipped or we're processing a match
-    if (gameOver || flippedCards.length >= 2 || processingMatch) return;
+    if (gameOver || processingMatch || flippedCards.length >= 2) return;
     
     const clickedCard = cards.find(card => card.id === cardId);
     
-    // Ignore clicks on already flipped or matched cards
-    if (!clickedCard || clickedCard.flipped || clickedCard.matched) return;
+    if (!clickedCard || clickedCard.flipped || clickedCard.matched || flippedCards.includes(cardId)) return;
     
     // Flip the card
     setCards(prevCards => 
@@ -190,10 +181,8 @@ const MemoryGame: React.FC<MemoryGameProps> = ({ onClose, timeLimit = 180 }) => 
       )
     );
     
-    playSound('flip');
-    
-    // Add the card to flipped cards
     setFlippedCards(prev => [...prev, cardId]);
+    playSound('flip');
   };
   
   const endGame = (won: boolean) => {
@@ -210,11 +199,10 @@ const MemoryGame: React.FC<MemoryGameProps> = ({ onClose, timeLimit = 180 }) => 
       playSound('gameover');
       toast({
         title: "Time's up!",
-        description: `You matched ${matchedPairs} out of ${emojis.length} pairs.`,
+        description: `You matched ${matchedPairs} out of ${gameEmojis.length} pairs.`,
       });
     }
     
-    // Auto close after 3 seconds if game is complete
     if (won || timeRemaining <= 0) {
       setTimeout(() => {
         onClose();
@@ -249,11 +237,11 @@ const MemoryGame: React.FC<MemoryGameProps> = ({ onClose, timeLimit = 180 }) => 
       if (audioToPlay) {
         audioToPlay.currentTime = 0;
         audioToPlay.play().catch(err => {
-          console.error('Error playing sound:', err);
+          console.warn('Could not play audio:', err);
         });
       }
     } catch (error) {
-      console.error('Error playing sound:', error);
+      console.warn('Audio playback error:', error);
     }
   };
   
@@ -262,6 +250,8 @@ const MemoryGame: React.FC<MemoryGameProps> = ({ onClose, timeLimit = 180 }) => 
     const secs = seconds % 60;
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
+  
+  const gameEmojis = emojis.slice(0, 6);
   
   return (
     <Card className="w-full max-w-3xl mx-auto">
@@ -283,7 +273,7 @@ const MemoryGame: React.FC<MemoryGameProps> = ({ onClose, timeLimit = 180 }) => 
               <span className="font-medium">Moves:</span> {moves}
             </div>
             <div>
-              <span className="font-medium">Pairs:</span> {matchedPairs}/{emojis.length}
+              <span className="font-medium">Pairs:</span> {matchedPairs}/{gameEmojis.length}
             </div>
           </div>
           <div className="flex items-center space-x-2">
@@ -298,17 +288,16 @@ const MemoryGame: React.FC<MemoryGameProps> = ({ onClose, timeLimit = 180 }) => 
         <Progress 
           value={(timeRemaining / timeLimit) * 100} 
           className="h-2 mb-4"
-          color={timeRemaining < 30 ? "red" : undefined}
         />
         
         {/* Game grid */}
-        <div className="grid grid-cols-4 md:grid-cols-6 gap-3 mb-4">
+        <div className="grid grid-cols-4 gap-3 mb-4">
           {cards.map(card => (
             <div 
               key={card.id} 
               className={`aspect-square rounded-lg cursor-pointer transform transition-all duration-300 ${
                 card.matched ? 'opacity-60' : ''
-              } ${card.flipped ? 'rotate-y-180' : ''}`}
+              } ${!gameStarted || gameOver || processingMatch ? 'pointer-events-none' : ''}`}
               onClick={() => handleCardClick(card.id)}
             >
               <div className={`w-full h-full flex items-center justify-center text-2xl font-bold rounded-lg border-2 ${

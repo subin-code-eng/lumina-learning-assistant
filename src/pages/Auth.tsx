@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -44,10 +43,8 @@ const Auth: React.FC = () => {
     
     try {
       await login(loginEmail, loginPassword);
-      // Navigate happens in the login function after success
     } catch (error) {
       setIsLoading(false);
-      // Error toast is shown in the login function
     }
   };
 
@@ -57,10 +54,8 @@ const Auth: React.FC = () => {
     
     try {
       await signup(signupName, signupEmail, signupPassword);
-      // Set email sent flag to show confirmation message
       setEmailSent(true);
     } catch (error) {
-      // Error toast is shown in the signup function
     } finally {
       setIsLoading(false);
     }
@@ -79,7 +74,6 @@ const Auth: React.FC = () => {
     try {
       await resendVerification(loginEmail);
     } catch (error) {
-      // Error toast is shown in the resendVerification function
     } finally {
       setResendingVerification(false);
     }
@@ -315,12 +309,6 @@ const Auth: React.FC = () => {
                         Password must be at least 6 characters
                       </p>
                     </div>
-                    <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800">
-                      <Info className="h-4 w-4 mr-2" />
-                      <AlertDescription>
-                        This app uses Supabase for authentication and data storage.
-                      </AlertDescription>
-                    </Alert>
                   </CardContent>
                   <CardFooter className="flex flex-col space-y-2">
                     <Button 
