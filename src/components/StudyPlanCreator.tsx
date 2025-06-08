@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,6 +21,8 @@ interface StudyPlan {
   duration_days: number;
   ai_generated_plan: string | null;
   created_at: string;
+  user_id: string;
+  updated_at: string;
 }
 
 const StudyPlanCreator: React.FC = () => {
@@ -48,7 +49,7 @@ const StudyPlanCreator: React.FC = () => {
       try {
         const { data, error } = await supabase
           .from('study_plans')
-          .select('*')
+          .select('id, title, description, subject, difficulty, duration_days, ai_generated_plan, created_at, user_id, updated_at')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
           .limit(3);
@@ -205,7 +206,7 @@ const StudyPlanCreator: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('study_plans')
-        .select('*')
+        .select('id, title, description, subject, difficulty, duration_days, ai_generated_plan, created_at, user_id, updated_at')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
         
