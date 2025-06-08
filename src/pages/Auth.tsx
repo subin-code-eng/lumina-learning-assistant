@@ -1,338 +1,294 @@
+
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { toast } from '@/components/ui/sonner';
-import { UserCheck, UserPlus, Eye, EyeOff, Mail, RefreshCw, Info } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { Loader2, Eye, EyeOff, GraduationCap } from 'lucide-react';
 
-const Auth: React.FC = () => {
+const Auth = () => {
   const navigate = useNavigate();
-  const { login, signup, resendVerification, isAuthenticated } = useAuth();
-  const [isLoading, setIsLoading] = useState(false);
-  const [resendingVerification, setResendingVerification] = useState(false);
-  
-  // Login form state
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  const [showLoginPassword, setShowLoginPassword] = useState(false);
-  const [loginError, setLoginError] = useState<string | null>(null);
-  
-  // Signup form state
-  const [signupEmail, setSignupEmail] = useState('');
-  const [signupPassword, setSignupPassword] = useState('');
-  const [signupName, setSignupName] = useState('');
-  const [showSignupPassword, setShowSignupPassword] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
 
-  // Redirect if already logged in
   useEffect(() => {
-    if (isAuthenticated) {
+    if (user) {
       navigate('/');
     }
-  }, [isAuthenticated, navigate]);
+  }, [user, navigate]);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    setLoginError(null);
-    
-    try {
-      await login(loginEmail, loginPassword);
-    } catch (error) {
-      setIsLoading(false);
-    }
-  };
+    setLoading(true);
 
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    
-    try {
-      await signup(signupName, signupEmail, signupPassword);
-      setEmailSent(true);
-    } catch (error) {
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleResendVerification = async () => {
-    if (!loginEmail) {
-      toast.error("Email required", {
-        description: "Please enter your email address to resend verification",
+    if (!email || !password || !fullName) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all fields",
+        variant: "destructive",
       });
+      setLoading(false);
       return;
     }
-    
-    setResendingVerification(true);
-    
-    try {
-      await resendVerification(loginEmail);
-    } catch (error) {
-    } finally {
-      setResendingVerification(false);
-    }
-  };
 
-  const demoLogin = async () => {
-    setIsLoading(true);
-    
+    if (password.length < 6) {
+      toast({
+        title: "Password Too Short",
+        description: "Password must be at least 6 characters long",
+        variant: "destructive",
+      });
+      setLoading(false);
+      return;
+    }
+
     try {
-      await login('demo@example.com', 'password123');
-    } catch (error) {
-      toast.error("Demo login failed", {
-        description: "Unable to access demo account. Please create a new account instead.",
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+          },
+          emailRedirectTo: `${window.location.origin}/`
+        }
+      });
+
+      if (error) {
+        if (error.message.includes('already registered')) {
+          toast({
+            title: "Account Already Exists",
+            description: "An account with this email already exists. Please sign in instead.",
+            variant: "destructive",
+          });
+        } else {
+          throw error;
+        }
+      } else {
+        toast({
+          title: "Account Created Successfully!",
+          description: "Please check your email to verify your account.",
+        });
+        setEmail('');
+        setPassword('');
+        setFullName('');
+      }
+    } catch (error: any) {
+      console.error('Error signing up:', error);
+      toast({
+        title: "Error Creating Account",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const toggleLoginPasswordVisibility = () => setShowLoginPassword(prev => !prev);
-  const toggleSignupPasswordVisibility = () => setShowSignupPassword(prev => !prev);
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    if (!email || !password) {
+      toast({
+        title: "Missing Information",
+        description: "Please enter both email and password",
+        variant: "destructive",
+      });
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        if (error.message.includes('Invalid login credentials')) {
+          toast({
+            title: "Invalid Credentials",
+            description: "Please check your email and password and try again.",
+            variant: "destructive",
+          });
+        } else {
+          throw error;
+        }
+      } else {
+        toast({
+          title: "Welcome Back!",
+          description: "You have successfully signed in.",
+        });
+        navigate('/');
+      }
+    } catch (error: any) {
+      console.error('Error signing in:', error);
+      toast({
+        title: "Error Signing In",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/50 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-background to-muted/50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold">AI Study Planner</h1>
-          <p className="text-muted-foreground mt-2">Sign in to access your personalized study plan</p>
+        {/* Logo/Header */}
+        <div className="text-center mb-8">
+          <div className="flex items-center justify-center mb-4">
+            <GraduationCap className="h-12 w-12 text-primary" />
+          </div>
+          <h1 className="text-3xl font-bold tracking-tight">AI Study Planner</h1>
+          <p className="text-muted-foreground mt-2">
+            Your intelligent learning companion
+          </p>
         </div>
-        
+
         <Card>
-          <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Login</TabsTrigger>
-              <TabsTrigger value="signup">Sign Up</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="login">
-              <form onSubmit={handleLogin}>
-                <CardHeader>
-                  <CardTitle>Welcome Back</CardTitle>
-                  <CardDescription>Enter your credentials to access your account</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {loginError && loginError.includes('verify') && (
-                    <Alert variant="default" className="bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800">
-                      <AlertDescription className="flex justify-between items-center">
-                        <span>Please verify your email before logging in.</span>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          onClick={handleResendVerification}
-                          disabled={resendingVerification}
-                          className="ml-2 bg-amber-50 dark:bg-amber-900/30"
-                        >
-                          {resendingVerification ? (
-                            <RefreshCw className="h-4 w-4 animate-spin mr-1" />
-                          ) : null}
-                          Resend
-                        </Button>
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                  
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-2xl text-center">Welcome</CardTitle>
+            <CardDescription className="text-center">
+              Sign in to your account or create a new one
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue="signin" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="signin">Sign In</TabsTrigger>
+                <TabsTrigger value="signup">Sign Up</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="signin" className="space-y-4">
+                <form onSubmit={handleSignIn} className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium" htmlFor="email">Email</label>
-                    <Input 
-                      id="email" 
-                      type="email" 
-                      placeholder="your@email.com" 
-                      value={loginEmail}
-                      onChange={(e) => setLoginEmail(e.target.value)}
+                    <Label htmlFor="signin-email">Email</Label>
+                    <Input
+                      id="signin-email"
+                      type="email"
+                      placeholder="Enter your email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <label className="text-sm font-medium" htmlFor="password">Password</label>
-                      <Button 
-                        variant="link" 
-                        size="sm" 
-                        className="p-0 h-auto text-sm"
-                        onClick={async () => {
-                          if (loginEmail) {
-                            try {
-                              const { error } = await supabase.auth.resetPasswordForEmail(loginEmail, {
-                                redirectTo: `${window.location.origin}/auth?reset=true`,
-                              });
-                              if (error) throw error;
-                              toast.success("Password reset email sent", {
-                                description: "Check your inbox for instructions"
-                              });
-                            } catch (error) {
-                              toast.error("Failed to send reset email", {
-                                description: "Please try again"
-                              });
-                            }
-                          } else {
-                            toast.error("Email required", {
-                              description: "Please enter your email first"
-                            });
-                          }
-                        }}
-                      >
-                        Forgot password?
-                      </Button>
-                    </div>
+                    <Label htmlFor="signin-password">Password</Label>
                     <div className="relative">
-                      <Input 
-                        id="password" 
-                        type={showLoginPassword ? "text" : "password"}
-                        placeholder="••••••••" 
-                        value={loginPassword}
-                        onChange={(e) => setLoginPassword(e.target.value)}
+                      <Input
+                        id="signin-password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Enter your password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
                         required
                       />
                       <Button
                         type="button"
                         variant="ghost"
-                        size="icon"
-                        className="absolute right-0 top-0 h-full px-3"
-                        onClick={toggleLoginPasswordVisibility}
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        onClick={() => setShowPassword(!showPassword)}
                       >
-                        {showLoginPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
                       </Button>
                     </div>
                   </div>
-                </CardContent>
-                <CardFooter className="flex flex-col space-y-2">
-                  <Button 
-                    type="submit" 
-                    className="w-full" 
-                    disabled={isLoading}
-                  >
-                    <UserCheck className="mr-2 h-4 w-4" />
-                    {isLoading ? 'Logging in...' : 'Login'}
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Sign In
                   </Button>
-                  <Button 
-                    type="button"
-                    variant="outline" 
-                    className="w-full" 
-                    onClick={demoLogin}
-                    disabled={isLoading}
-                  >
-                    Try Demo Account
-                  </Button>
-                </CardFooter>
-              </form>
-            </TabsContent>
-            
-            <TabsContent value="signup">
-              {emailSent ? (
-                <div className="p-6 text-center">
-                  <Mail className="mx-auto h-12 w-12 text-primary mb-4" />
-                  <CardTitle className="mb-2">Check your email!</CardTitle>
-                  <CardDescription className="mb-6">
-                    We've sent a confirmation email to <strong>{signupEmail}</strong>. 
-                    Please check your inbox and confirm your email address to continue.
-                  </CardDescription>
-                  <Alert className="mb-4 bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800">
-                    <Info className="h-4 w-4 mr-2" />
-                    <AlertDescription>
-                      Note: For development purposes, you may want to disable email verification in the Supabase dashboard.
-                    </AlertDescription>
-                  </Alert>
-                  <div className="flex flex-col space-y-2">
-                    <Button 
-                      variant="outline" 
-                      className="w-full"
-                      onClick={() => setEmailSent(false)}
-                    >
-                      Back to signup
-                    </Button>
-                    <Button 
-                      className="w-full"
-                      onClick={demoLogin}
-                    >
-                      Try Demo Account
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <form onSubmit={handleSignup}>
-                  <CardHeader>
-                    <CardTitle>Create an Account</CardTitle>
-                    <CardDescription>Enter your details to create a new account</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium" htmlFor="name">Full Name</label>
-                      <Input 
-                        id="name" 
-                        placeholder="John Doe" 
-                        value={signupName}
-                        onChange={(e) => setSignupName(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium" htmlFor="signup-email">Email</label>
-                      <Input 
-                        id="signup-email" 
-                        type="email" 
-                        placeholder="your@email.com" 
-                        value={signupEmail}
-                        onChange={(e) => setSignupEmail(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium" htmlFor="signup-password">Password</label>
-                      <div className="relative">
-                        <Input 
-                          id="signup-password" 
-                          type={showSignupPassword ? "text" : "password"}
-                          placeholder="••••••••" 
-                          value={signupPassword}
-                          onChange={(e) => setSignupPassword(e.target.value)}
-                          required
-                          minLength={6}
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="absolute right-0 top-0 h-full px-3"
-                          onClick={toggleSignupPasswordVisibility}
-                        >
-                          {showSignupPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </Button>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Password must be at least 6 characters
-                      </p>
-                    </div>
-                  </CardContent>
-                  <CardFooter className="flex flex-col space-y-2">
-                    <Button 
-                      type="submit" 
-                      className="w-full" 
-                      disabled={isLoading}
-                    >
-                      <UserPlus className="mr-2 h-4 w-4" />
-                      {isLoading ? 'Creating Account...' : 'Sign Up'}
-                    </Button>
-                    <Button 
-                      type="button"
-                      variant="outline" 
-                      className="w-full" 
-                      onClick={demoLogin}
-                    >
-                      Try Demo Account
-                    </Button>
-                  </CardFooter>
                 </form>
-              )}
-            </TabsContent>
-          </Tabs>
+              </TabsContent>
+              
+              <TabsContent value="signup" className="space-y-4">
+                <form onSubmit={handleSignUp} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-name">Full Name</Label>
+                    <Input
+                      id="signup-name"
+                      type="text"
+                      placeholder="Enter your full name"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-email">Email</Label>
+                    <Input
+                      id="signup-email"
+                      type="email"
+                      placeholder="Enter your email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-password">Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="signup-password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Create a password (min. 6 characters)"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                        minLength={6}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Create Account
+                  </Button>
+                </form>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
         </Card>
+
+        <div className="text-center mt-6 text-sm text-muted-foreground">
+          <p>
+            By signing up, you agree to our{' '}
+            <a href="#" className="underline underline-offset-4 hover:text-primary">
+              Terms of Service
+            </a>{' '}
+            and{' '}
+            <a href="#" className="underline underline-offset-4 hover:text-primary">
+              Privacy Policy
+            </a>
+          </p>
+        </div>
       </div>
     </div>
   );

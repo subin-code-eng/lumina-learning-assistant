@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,9 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import ReactMarkdown from 'react-markdown';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Skeleton } from "@/components/ui/skeleton";
 
-// Types for chat messages
 interface Message {
   id: string;
   text: string;
@@ -23,7 +22,6 @@ interface Message {
   type?: 'followUp' | 'feedback' | 'standard';
 }
 
-// User preference type
 interface UserPreference {
   learningStyle: 'visual' | 'auditory' | 'kinesthetic' | 'reading/writing';
   difficulty: 'beginner' | 'intermediate' | 'advanced';
@@ -33,32 +31,25 @@ interface UserPreference {
 
 const AITutor: React.FC = () => {
   const { user } = useAuth();
-  // State for messages
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      text: "Hi! I'm your AI tutor. What topic are you learning today? And what's your current level — beginner, intermediate, or advanced?",
+      text: "Hi! I'm your advanced AI tutor. I can help you with any subject - from mathematics and science to languages and history. What would you like to learn today?",
       sender: 'ai',
       timestamp: new Date(),
       type: 'standard'
     }
   ]);
   
-  // User input states
   const [input, setInput] = useState('');
   const [longQuery, setLongQuery] = useState('');
   const [showLongForm, setShowLongForm] = useState(false);
-  
-  // UI states
   const [isTyping, setIsTyping] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [showTutorPreferences, setShowTutorPreferences] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [connectionAttempts, setConnectionAttempts] = useState(0);
-  const [isCheckingConnection, setIsCheckingConnection] = useState(false);
-  const [retryTimeout, setRetryTimeout] = useState<number | null>(null);
   
-  // User learning preferences
   const [userPreferences, setUserPreferences] = useState<UserPreference>({
     learningStyle: 'visual',
     difficulty: 'intermediate',
@@ -66,262 +57,90 @@ const AITutor: React.FC = () => {
     subjects: ['Mathematics', 'Science', 'History']
   });
   
-  // Conversation context tracking
   const [currentTopic, setCurrentTopic] = useState<string | null>(null);
-  const [followUpQuestions, setFollowUpQuestions] = useState<string[]>([]);
   const [conversationContext, setConversationContext] = useState<string[]>([]);
   
-  // References
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
 
-  // Define the maxRetries constant that was missing
-  const maxRetries = 3;
-
-  // Connection recovery with exponential backoff
-  useEffect(() => {
-    if (apiError && connectionAttempts > 0 && !isCheckingConnection) {
-      const backoffTime = Math.min(Math.pow(2, connectionAttempts) * 5000, 60000); // Exponential backoff capped at 1 minute
-      
-      if (retryTimeout) {
-        window.clearTimeout(retryTimeout);
-      }
-      
-      const timeout = window.setTimeout(() => {
-        // Try to ping the function to see if it's back online
-        checkAPIConnection();
-      }, backoffTime);
-      
-      setRetryTimeout(timeout);
-      
-      return () => {
-        if (retryTimeout) {
-          window.clearTimeout(retryTimeout);
-        }
-      };
-    }
-  }, [apiError, connectionAttempts, isCheckingConnection]);
-  
-  const checkAPIConnection = async () => {
-    try {
-      setIsCheckingConnection(true);
-      const { data, error } = await supabase.functions.invoke('ai-tutor', {
-        body: {
-          query: "Are you online?",
-          userPreferences,
-          conversationContext: []
-        }
-      });
-      
-      if (!error && data?.response && !data?.error) {
-        // Connection restored
-        setApiError(null);
-        setConnectionAttempts(0);
-        
-        // Add a system message that the connection is restored
-        const systemMessage: Message = {
-          id: Date.now().toString(),
-          text: "Connection restored! You can continue asking questions.",
-          sender: 'ai',
-          timestamp: new Date(),
-          type: 'standard'
-        };
-        
-        setMessages(prev => [...prev, systemMessage]);
-        toast.success("AI connection restored", {
-          description: "You can now continue your conversation"
-        });
-      } else {
-        // Still having issues
-        setConnectionAttempts(prev => prev + 1);
-      }
-    } catch (error) {
-      console.error("Still having connection issues:", error);
-      setConnectionAttempts(prev => prev + 1);
-    } finally {
-      setIsCheckingConnection(false);
-    }
-  };
-  
-  // Track conversation topics for personalization
-  useEffect(() => {
-    if (messages.length > 1) {
-      const lastUserMessage = messages.filter(m => m.sender === 'user').pop();
-      if (lastUserMessage) {
-        // Extract topics from user message
-        const userText = lastUserMessage.text.toLowerCase();
-        
-        // Simple topic detection
-        if (userText.includes('math') || userText.includes('equation') || userText.includes('calculus')) {
-          setCurrentTopic('mathematics');
-        } else if (userText.includes('history') || userText.includes('war') || userText.includes('century')) {
-          setCurrentTopic('history');
-        } else if (userText.includes('science') || userText.includes('biology') || userText.includes('physics')) {
-          setCurrentTopic('science');
-        } else if (userText.includes('language') || userText.includes('grammar') || userText.includes('vocabulary')) {
-          setCurrentTopic('languages');
-        }
-        
-        // Update conversation context (keep last 5 messages for context)
-        setConversationContext(prev => {
-          const updated = [...prev, lastUserMessage.text];
-          return updated.slice(-5);
-        });
-      }
-    }
-  }, [messages]);
-
-  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Focus on input when not typing
   useEffect(() => {
     if (!isTyping && !showLongForm && inputRef.current) {
       inputRef.current.focus();
     }
   }, [isTyping, showLongForm]);
 
-  // Save conversation to Supabase if user is logged in
-  useEffect(() => {
-    const saveConversationToServer = async () => {
-      if (!user || messages.length <= 1) return;
-      
-      try {
-        // Create a properly typed parameter object for the RPC call
-        const conversationTitle = currentTopic 
-          ? `${currentTopic.charAt(0).toUpperCase() + currentTopic.slice(1)} Chat - ${new Date().toLocaleDateString()}`
-          : `Study Session - ${new Date().toLocaleDateString()}`;
-          
-        const rpcParams = {
-          p_user_id: user.id,
-          p_conversation_title: conversationTitle,
-          p_messages: JSON.parse(JSON.stringify(messages)) // Serialize and deserialize to ensure proper JSON format
-        };
-        
-        const { error } = await supabase.rpc('save_ai_conversation', rpcParams);
-        
-        if (error) throw error;
-      } catch (error) {
-        console.error('Error saving conversation:', error);
-      }
-    };
-    
-    // Save conversation when it's updated (debounced)
-    const saveTimeout = setTimeout(saveConversationToServer, 2000);
-    return () => clearTimeout(saveTimeout);
-  }, [messages, user, currentTopic]);
-
-  // Suggested prompts based on learning style and preferences
-  const generateSuggestedPrompts = () => {
-    const basePrompts = [
-      "Can you explain how photosynthesis works?",
-      "Help me understand quadratic equations",
-      "What are the key events of World War II?",
-      "How should I prepare for my history exam?",
-      "Create a study plan for learning calculus"
-    ];
-    
-    // Add personalized prompts based on user preferences
-    if (userPreferences.subjects.includes('Mathematics')) {
-      basePrompts.push("What's the best way to memorize mathematical formulas?");
-    }
-    
-    if (userPreferences.learningStyle === 'visual') {
-      basePrompts.push("Can you describe concepts with visual analogies?");
-    }
-    
-    return basePrompts;
-  };
-
-  // Function to call the AI API with retry logic
-  const callAIEndpoint = async (userQuery: string, retryCount = 0): Promise<{response: string, error?: boolean, errorType?: string}> => {
+  const callAIEndpoint = async (userQuery: string): Promise<{response: string, error?: boolean}> => {
     try {
       setApiError(null);
       
-      // Set up retry parameters (now maxRetries is defined above)
-      
-      // Try the initial request
       const { data, error } = await supabase.functions.invoke('ai-tutor', {
         body: {
           query: userQuery,
           userPreferences,
-          conversationContext: conversationContext.slice(-5) // Last 5 exchanges for context
+          conversationContext: conversationContext.slice(-5)
         }
       });
       
       if (error) {
         console.error('Error calling AI endpoint:', error);
-        setConnectionAttempts(prev => prev + 1);
         setApiError("Connection issue. Please try again.");
         return { 
-          response: "I'm having trouble connecting to my knowledge base right now. Let me try to give a general answer to your question.", 
-          error: true, 
-          errorType: "connection" 
+          response: "I'm having trouble connecting right now. Here's what I can tell you: " + getFallbackResponse(userQuery),
+          error: true
         };
       }
       
       if (!data?.response) {
-        setApiError("No response received from AI service.");
+        setApiError("No response received.");
         return { 
-          response: "I'm having trouble processing your request right now. Please try again in a moment.",
-          error: true,
-          errorType: "noResponse"
+          response: "I'm having trouble processing your request. Could you please rephrase your question?",
+          error: true
         };
       }
       
-      // Check if the response indicates an error
       if (data.error) {
-        console.log("Received error response from AI service:", data.errorType);
-        
-        // If it's a rate limit error and we're within our retry count, try again
-        if (data.errorType === "rate_limit" && retryCount < maxRetries) {
-          // Exponential backoff
-          const delay = Math.min(Math.pow(2, retryCount + 1) * 1000 + Math.random() * 1000, 8000);
-          console.log(`Rate limited, retrying in ${delay}ms (attempt ${retryCount + 1} of ${maxRetries})`);
-          
-          await new Promise(resolve => setTimeout(resolve, delay));
-          return callAIEndpoint(userQuery, retryCount + 1);
-        }
-        
-        setApiError(`AI service error: ${data.errorType}`);
+        setApiError(`Service error: ${data.errorType || 'unknown'}`);
         return data;
       }
       
-      // Reset connection attempts on successful response
       setConnectionAttempts(0);
       return data;
     } catch (error) {
       console.error('Error calling AI endpoint:', error);
-      
-      // Implement retry mechanism for network errors
-      if (retryCount < maxRetries) {
-        console.log(`Retrying AI request (attempt ${retryCount + 1} of ${maxRetries})...`);
-        const delay = Math.min(Math.pow(2, retryCount + 1) * 1000, 8000);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        return callAIEndpoint(userQuery, retryCount + 1);
-      }
-      
-      setConnectionAttempts(prev => prev + 1);
-      setApiError("Technical issue. Please try again later.");
+      setApiError("Technical issue occurred.");
       return { 
-        response: "I apologize for the inconvenience. My systems are experiencing some temporary issues. Let's try a different approach - ask me about general study techniques or learning methods.", 
-        error: true,
-        errorType: "technical" 
+        response: "I apologize for the technical difficulty. Let me provide a general response: " + getFallbackResponse(userQuery),
+        error: true
       };
     }
+  };
+
+  const getFallbackResponse = (query: string) => {
+    const queryLower = query.toLowerCase();
+    
+    if (queryLower.includes('math') || queryLower.includes('equation')) {
+      return "For mathematics, I recommend breaking down complex problems into smaller steps. Practice regularly and don't hesitate to ask for clarification on specific concepts.";
+    } else if (queryLower.includes('science') || queryLower.includes('biology') || queryLower.includes('chemistry')) {
+      return "Science concepts are best understood through examples and practical applications. Try to relate new information to things you already know.";
+    } else if (queryLower.includes('history')) {
+      return "When studying history, focus on understanding cause and effect relationships rather than just memorizing dates and names.";
+    } else if (queryLower.includes('language') || queryLower.includes('grammar')) {
+      return "Language learning benefits from consistent practice. Try to immerse yourself in the language through reading, listening, and speaking.";
+    }
+    
+    return "Effective studying involves active learning techniques like summarizing, teaching others, and spaced repetition. What specific topic are you working on?";
   };
 
   const handleSend = async (customInput?: string) => {
     const messageText = customInput || input;
     if (!messageText.trim()) return;
     
-    // Reset any previous errors
     setApiError(null);
     
-    // Add user message
     const userMessage: Message = {
       id: Date.now().toString(),
       text: messageText,
@@ -335,41 +154,32 @@ const AITutor: React.FC = () => {
     setIsTyping(true);
     setIsThinking(true);
     
-    // Clear long form if it was used
     if (customInput) {
       setLongQuery('');
       setShowLongForm(false);
     }
     
+    // Update conversation context
+    setConversationContext(prev => {
+      const updated = [...prev, messageText];
+      return updated.slice(-5);
+    });
+    
     try {
-      // Generate follow-up questions based on user input for later use
-      generateFollowUpQuestions(messageText);
-      
-      // Simulate AI thinking time (shorter for better experience)
-      setTimeout(() => {
+      setTimeout(async () => {
         setIsThinking(false);
         
-        // Call AI API and simulate typing the response
-        callAIEndpoint(messageText).then(aiResponseData => {
-          const aiResponse = aiResponseData.response || "I'm having trouble generating a response right now.";
-          
-          // If this was an error response, set a special flag
-          const wasError = !!aiResponseData.error;
-          
-          simulateTypingResponse(aiResponse, wasError);
-          
-          // If there was an API error but we're showing a fallback response, notify the user
-          if (wasError) {
-            toast.warning("AI service issue", {
-              description: "Using fallback response mode. Some answers may be generic."
-            });
-          }
-        }).catch(error => {
-          console.error("Error getting AI response:", error);
-          setApiError("Failed to get AI response.");
-          simulateTypingResponse("I'm having trouble processing your request. Please try again.", true);
-        });
-      }, 700 + Math.random() * 800); // Random thinking time between 0.7-1.5s
+        const aiResponseData = await callAIEndpoint(messageText);
+        const aiResponse = aiResponseData.response || "I'm having trouble generating a response right now.";
+        
+        simulateTypingResponse(aiResponse, !!aiResponseData.error);
+        
+        if (aiResponseData.error) {
+          toast.warning("AI service issue", {
+            description: "Using backup response mode."
+          });
+        }
+      }, 800);
     } catch (error) {
       console.error("Error in handleSend:", error);
       setIsTyping(false);
@@ -386,10 +196,8 @@ const AITutor: React.FC = () => {
     let currentResponse = '';
     let wordIndex = 0;
     
-    // Typing speed adjusts based on response length
-    const typingSpeed = Math.max(10, Math.min(30, 20 - Math.floor(words.length / 50)));
+    const typingSpeed = 50; // Faster typing for better UX
     
-    // Temporary message for typing effect
     const typingMessageId = Date.now().toString();
     const typingMessage: Message = {
       id: typingMessageId,
@@ -401,13 +209,11 @@ const AITutor: React.FC = () => {
     
     setMessages(prev => [...prev, typingMessage]);
     
-    // Simulate typing one word at a time (faster than before for better UX)
     const typingInterval = setInterval(() => {
       if (wordIndex < words.length) {
         currentResponse += (wordIndex === 0 ? '' : ' ') + words[wordIndex];
         wordIndex++;
         
-        // Update the message with what's "typed" so far
         setMessages(prev => 
           prev.map(msg => 
             msg.id === typingMessageId 
@@ -416,75 +222,10 @@ const AITutor: React.FC = () => {
           )
         );
       } else {
-        // Typing complete
         clearInterval(typingInterval);
         setIsTyping(false);
-        
-        // After a short delay, add follow-up questions if appropriate
-        if (!isErrorResponse && Math.random() > 0.4) { // 60% chance of follow-up when not an error
-          setTimeout(() => {
-            addFollowUpMessage();
-          }, 1000);
-        }
       }
-    }, typingSpeed); // Speed of typing adjusted based on response length
-  };
-
-  const addFollowUpMessage = () => {
-    if (followUpQuestions.length > 0) {
-      // Choose a random follow-up
-      const randomIndex = Math.floor(Math.random() * followUpQuestions.length);
-      const followUp = followUpQuestions[randomIndex];
-      
-      // Add as a follow-up message
-      const followUpMessage: Message = {
-        id: 'followup-' + Date.now().toString(),
-        text: followUp,
-        sender: 'ai',
-        timestamp: new Date(),
-        type: 'followUp'
-      };
-      
-      setMessages(prev => [...prev, followUpMessage]);
-      
-      // Remove the used question
-      setFollowUpQuestions(prev => prev.filter((_, i) => i !== randomIndex));
-    }
-  };
-
-  const generateFollowUpQuestions = (userQuery: string) => {
-    const lowercaseQuery = userQuery.toLowerCase();
-    let questions: string[] = [];
-    
-    // Generate contextual follow-up questions
-    if (lowercaseQuery.includes('study') && lowercaseQuery.includes('plan')) {
-      questions = [
-        "Would you like me to help you create a personalized study schedule?",
-        "Do you prefer to study in short sessions or longer blocks of time?",
-        "Is there a specific exam or subject you're preparing for?"
-      ];
-    } else if (lowercaseQuery.includes('math') || lowercaseQuery.includes('equation')) {
-      questions = [
-        "Would you like to see more practice problems on this topic?",
-        "Are there specific aspects of this math concept that you find particularly challenging?",
-        "Would you like me to explain this in a different way with more visual examples?"
-      ];
-    } else if (lowercaseQuery.includes('exam') || lowercaseQuery.includes('test')) {
-      questions = [
-        "How much time do you have before the exam?",
-        "Would you like me to create a study plan specifically for this exam?",
-        "What topics do you find most challenging for this subject?"
-      ];
-    } else {
-      // Default follow-ups
-      questions = [
-        "Would you like me to explain this topic in more detail?",
-        "Is there anything specific about this topic that you'd like to focus on?",
-        "How does this relate to what you're currently studying?"
-      ];
-    }
-    
-    setFollowUpQuestions(questions);
+    }, typingSpeed);
   };
 
   const formatTime = (date: Date) => {
@@ -521,31 +262,11 @@ const AITutor: React.FC = () => {
     });
   };
 
-  const togglePreferences = () => {
-    setShowTutorPreferences(!showTutorPreferences);
-  };
-
-  const updatePreference = (key: keyof UserPreference, value: any) => {
-    setUserPreferences(prev => ({
-      ...prev,
-      [key]: value
-    }));
-    
-    // Provide feedback
-    toast.success("Preference updated", {
-      description: "Your learning preferences have been updated"
-    });
-  };
-
-  const handleFollowUpClick = (question: string) => {
-    handleSend(question);
-  };
-
   const clearConversation = () => {
     setMessages([
       {
         id: '1',
-        text: "Hi! I'm your AI tutor. What topic are you learning today? And what's your current level — beginner, intermediate, or advanced?",
+        text: "Hi! I'm your advanced AI tutor. I can help you with any subject - from mathematics and science to languages and history. What would you like to learn today?",
         sender: 'ai',
         timestamp: new Date(),
         type: 'standard'
@@ -558,13 +279,24 @@ const AITutor: React.FC = () => {
     });
   };
 
-  const handleRetryConnection = () => {
-    setApiError(null);
-    checkAPIConnection();
-    toast.info("Checking connection", {
-      description: "Attempting to reconnect to AI service..."
+  const updatePreference = (key: keyof UserPreference, value: any) => {
+    setUserPreferences(prev => ({
+      ...prev,
+      [key]: value
+    }));
+    
+    toast.success("Preference updated", {
+      description: "Your learning preferences have been updated"
     });
   };
+
+  const suggestedPrompts = [
+    "Explain quantum physics in simple terms",
+    "Help me understand calculus derivatives",
+    "What are the causes of World War I?",
+    "How do I write a compelling essay?",
+    "Explain photosynthesis step by step"
+  ];
 
   return (
     <Card className="w-full h-[600px] flex flex-col">
@@ -576,10 +308,10 @@ const AITutor: React.FC = () => {
               <Sparkles className="h-4 w-4 text-primary-foreground" />
             </Avatar>
             <div>
-              <CardTitle className="text-lg">Interactive Study Buddy</CardTitle>
+              <CardTitle className="text-lg">Advanced AI Tutor</CardTitle>
               <CardDescription className="text-xs flex items-center gap-1">
                 <Lightbulb className="h-3 w-3" /> 
-                Personalized learning assistant
+                Your personalized learning companion
               </CardDescription>
             </div>
           </div>
@@ -588,7 +320,7 @@ const AITutor: React.FC = () => {
               variant="ghost" 
               size="sm" 
               className="text-xs" 
-              onClick={togglePreferences}
+              onClick={() => setShowTutorPreferences(!showTutorPreferences)}
               title="Learning preferences"
             >
               <Edit className="h-4 w-4 mr-1" />
@@ -613,7 +345,6 @@ const AITutor: React.FC = () => {
           </div>
         </div>
         
-        {/* Learning preferences section */}
         {showTutorPreferences && (
           <div className="mt-3 p-3 bg-muted/50 rounded-lg text-sm space-y-3">
             <h4 className="font-medium flex items-center gap-1">
@@ -637,7 +368,7 @@ const AITutor: React.FC = () => {
               </div>
               
               <div>
-                <label className="text-xs font-medium">Explanation Level:</label>
+                <label className="text-xs font-medium">Difficulty Level:</label>
                 <select 
                   className="w-full mt-1 text-xs p-1 rounded border bg-background text-foreground"
                   value={userPreferences.difficulty}
@@ -648,18 +379,6 @@ const AITutor: React.FC = () => {
                   <option value="advanced">Advanced</option>
                 </select>
               </div>
-              
-              <div>
-                <label className="text-xs font-medium">Response Detail:</label>
-                <select 
-                  className="w-full mt-1 text-xs p-1 rounded border bg-background text-foreground"
-                  value={userPreferences.responseLength}
-                  onChange={(e) => updatePreference('responseLength', e.target.value as any)}
-                >
-                  <option value="concise">Concise</option>
-                  <option value="detailed">Detailed</option>
-                </select>
-              </div>
             </div>
               
             <div className="flex justify-end">
@@ -667,9 +386,9 @@ const AITutor: React.FC = () => {
                 variant="ghost" 
                 size="sm" 
                 className="text-xs" 
-                onClick={togglePreferences}
+                onClick={() => setShowTutorPreferences(false)}
               >
-                Close preferences
+                Close
               </Button>
             </div>
           </div>
@@ -679,31 +398,12 @@ const AITutor: React.FC = () => {
           <Alert variant="destructive" className="mt-2">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Connection Issue</AlertTitle>
-            <AlertDescription className="flex flex-col gap-2">
-              <p>{apiError}</p>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleRetryConnection}
-                className="mt-1 w-fit"
-                disabled={isCheckingConnection}
-              >
-                {isCheckingConnection ? (
-                  <>
-                    <RefreshCw className="h-3 w-3 mr-1 animate-spin" /> Checking connection...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="h-3 w-3 mr-1" /> Try reconnecting
-                  </>
-                )}
-              </Button>
-            </AlertDescription>
+            <AlertDescription>{apiError}</AlertDescription>
           </Alert>
         )}
       </CardHeader>
       
-      <CardContent className="flex-grow overflow-hidden pb-0 px-3 relative" ref={scrollAreaRef}>
+      <CardContent className="flex-grow overflow-hidden pb-0 px-3">
         <ScrollArea className="h-full pr-4">
           <div className="space-y-4 pb-4">
             {messages.map((msg) => (
@@ -711,71 +411,31 @@ const AITutor: React.FC = () => {
                 key={msg.id}
                 className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
               >
-                {msg.type === 'followUp' ? (
-                  <div className="w-full px-10 my-1">
-                    <Button 
-                      variant="outline" 
-                      className="text-sm w-full justify-start hover:bg-primary/5 border-dashed"
-                      onClick={() => handleFollowUpClick(msg.text)}
+                <div className={`flex gap-2 max-w-[90%] ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}>
+                  <Avatar className={msg.sender === 'user' ? 'bg-secondary h-8 w-8' : 'bg-primary h-8 w-8'}>
+                    <AvatarFallback>{msg.sender === 'user' ? 'U' : 'AI'}</AvatarFallback>
+                  </Avatar>
+                  <div className="space-y-1">
+                    <div 
+                      className={`rounded-lg p-3 text-sm ${
+                        msg.sender === 'user' 
+                          ? 'bg-secondary text-secondary-foreground' 
+                          : 'bg-muted text-foreground'
+                      }`}
                     >
-                      <MessageCircle className="h-4 w-4 mr-2 text-primary" />
-                      {msg.text}
-                    </Button>
-                  </div>
-                ) : (
-                  <div className={`flex gap-2 max-w-[90%] ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}>
-                    <Avatar className={msg.sender === 'user' ? 'bg-secondary h-8 w-8' : 'bg-primary h-8 w-8'}>
-                      {msg.sender === 'user' ? (
-                        <AvatarFallback>U</AvatarFallback>
-                      ) : (
-                        <AvatarFallback>AI</AvatarFallback>
-                      )}
-                    </Avatar>
-                    <div className="space-y-1">
-                      <div 
-                        className={`rounded-lg p-3 text-sm ${
-                          msg.sender === 'user' 
-                            ? 'bg-secondary text-secondary-foreground' 
-                            : msg.type === 'feedback'
-                              ? 'bg-muted/80 text-foreground border border-amber-300/30'
-                              : 'bg-muted text-foreground'
-                        }`}
-                      >
-                        {currentTopic && msg.sender === 'ai' && !msg.text.startsWith("That's an interesting") && (
-                          <Badge variant="outline" className="mb-2 text-xs font-normal opacity-70">
-                            {currentTopic}
-                          </Badge>
-                        )}
-                        
-                        <div className="markdown-content">
-                          {msg.sender === 'ai' ? (
-                            <ReactMarkdown>{msg.text}</ReactMarkdown>
-                          ) : (
-                            msg.text.split('\n').map((line, i) => (
-                              <React.Fragment key={i}>
-                                {line}
-                                {i !== msg.text.split('\n').length - 1 && <br />}
-                              </React.Fragment>
-                            ))
-                          )}
-                        </div>
-                      </div>
-                      <div className="text-xs text-muted-foreground px-1 flex items-center">
-                        <span>{formatTime(msg.timestamp)}</span>
-                        {msg.sender === 'ai' && (
-                          <span className="ml-2 flex items-center">
-                            {msg.type === 'feedback' ? (
-                              <AlertCircle className="h-3 w-3 text-amber-400 mr-1" /> 
-                            ) : (
-                              <Heart className="h-3 w-3 text-red-400 mr-1" />
-                            )}
-                            <span className="sr-only">Learning assistant</span>
-                          </span>
+                      <div className="markdown-content">
+                        {msg.sender === 'ai' ? (
+                          <ReactMarkdown>{msg.text}</ReactMarkdown>
+                        ) : (
+                          msg.text
                         )}
                       </div>
                     </div>
+                    <div className="text-xs text-muted-foreground px-1">
+                      {formatTime(msg.timestamp)}
+                    </div>
                   </div>
-                )}
+                </div>
               </div>
             ))}
 
@@ -786,43 +446,26 @@ const AITutor: React.FC = () => {
                     <AvatarFallback>AI</AvatarFallback>
                   </Avatar>
                   <div className="rounded-lg bg-muted p-3 text-sm flex items-center">
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    <span className="ml-2">Thinking...</span>
+                    <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                    <span>Thinking...</span>
                   </div>
                 </div>
               </div>
             )}
             
-            {isTyping && !isThinking && (
-              <div className="flex justify-start">
-                <div className="flex gap-2">
-                  <Avatar className="bg-primary h-8 w-8">
-                    <AvatarFallback>AI</AvatarFallback>
-                  </Avatar>
-                  <div className="rounded-lg bg-muted p-3 text-sm flex items-center">
-                    <div className="flex space-x-1">
-                      <div className="h-2 w-2 bg-current rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                      <div className="h-2 w-2 bg-current rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                      <div className="h-2 w-2 bg-current rounded-full animate-bounce"></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
             <div ref={messagesEndRef} />
           </div>
         </ScrollArea>
       </CardContent>
       
-      {/* Suggested prompts */}
       {messages.length <= 2 && !isTyping && !apiError && (
         <div className="px-4 py-2">
           <p className="text-xs text-muted-foreground mb-2 flex items-center">
             <BookOpen className="h-3 w-3 mr-1" />
-            Suggested questions:
+            Try asking:
           </p>
           <div className="flex flex-wrap gap-2">
-            {generateSuggestedPrompts().map((prompt, i) => (
+            {suggestedPrompts.map((prompt, i) => (
               <Button 
                 key={i} 
                 variant="outline" 
@@ -837,7 +480,6 @@ const AITutor: React.FC = () => {
         </div>
       )}
       
-      {/* Long form toggle */}
       <div className="px-4 py-1">
         <button 
           onClick={toggleLongForm} 
@@ -846,12 +488,12 @@ const AITutor: React.FC = () => {
           {showLongForm ? (
             <>
               <MessageCircle className="h-3 w-3 mr-1" />
-              Use single-line input
+              Use quick input
             </>
           ) : (
             <>
               <Edit className="h-3 w-3 mr-1" />
-              Ask a longer question...
+              Ask a detailed question...
             </>
           )}
         </button>
@@ -888,7 +530,7 @@ const AITutor: React.FC = () => {
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask anything about your studies..."
+              placeholder="Ask me anything about your studies..."
               className="flex-grow"
               disabled={isTyping}
             />
@@ -898,37 +540,6 @@ const AITutor: React.FC = () => {
           </form>
         )}
       </CardFooter>
-
-      <style>{`
-        .markdown-content p {
-          margin-bottom: 0.5rem;
-        }
-        .markdown-content ul, .markdown-content ol {
-          margin-left: 1.5rem;
-          margin-bottom: 0.5rem;
-        }
-        .markdown-content li {
-          margin-bottom: 0.25rem;
-        }
-        .markdown-content h1, .markdown-content h2, .markdown-content h3 {
-          margin-top: 0.75rem;
-          margin-bottom: 0.5rem;
-          font-weight: 600;
-        }
-        .markdown-content code {
-          background-color: rgba(0, 0, 0, 0.1);
-          padding: 0.1rem 0.2rem;
-          border-radius: 0.25rem;
-          font-family: monospace;
-        }
-        .markdown-content pre {
-          background-color: rgba(0, 0, 0, 0.1);
-          padding: 0.5rem;
-          border-radius: 0.25rem;
-          overflow-x: auto;
-          margin-bottom: 0.5rem;
-        }
-      `}</style>
     </Card>
   );
 };

@@ -6,11 +6,12 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { Calendar, Clock, BookOpen, RefreshCw, Check, FileText, Plus } from 'lucide-react';
+import { Calendar, Clock, BookOpen, RefreshCw, Check, FileText, Plus, Brain } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import ReactMarkdown from 'react-markdown';
 
 interface StudyPlan {
   id: string;
@@ -19,6 +20,7 @@ interface StudyPlan {
   subject: string;
   difficulty: string;
   duration_days: number;
+  ai_generated_plan: string | null;
   created_at: string;
 }
 
@@ -35,17 +37,9 @@ const StudyPlanCreator: React.FC = () => {
   const [loadingPlans, setLoadingPlans] = useState(false);
   const [showPlans, setShowPlans] = useState(false);
   const [allStudyPlans, setAllStudyPlans] = useState<StudyPlan[]>([]);
-  
-  // Map duration selections to days
-  const durationMap: Record<string, string> = {
-    '7': '1 week',
-    '14': '2 weeks',
-    '30': '1 month',
-    '60': '2 months',
-    '90': '3 months'
-  };
+  const [generatedPlan, setGeneratedPlan] = useState<string>('');
+  const [showGeneratedPlan, setShowGeneratedPlan] = useState(false);
 
-  // Fetch user's recent study plans
   useEffect(() => {
     const fetchRecentPlans = async () => {
       if (!user) return;
@@ -74,7 +68,136 @@ const StudyPlanCreator: React.FC = () => {
     fetchRecentPlans();
   }, [user, showSuccess]);
 
-  // Fetch all study plans
+  const generateAIStudyPlan = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('ai-tutor', {
+        body: {
+          query: `Generate a comprehensive study plan for ${subject} at ${selectedDifficulty} level. Duration: ${duration} days. Goals: ${goals}. Time preference: ${timePreference}. 
+          
+          Please provide a detailed study plan with:
+          1. Daily breakdown of topics to cover
+          2. Specific learning objectives for each day
+          3. Recommended study methods and techniques
+          4. Practice exercises or assignments
+          5. Review sessions and checkpoints
+          6. Time allocation for each activity
+          
+          Format the response in a clear, structured manner with headers and bullet points.`,
+          userPreferences: {
+            learningStyle: 'visual',
+            difficulty: selectedDifficulty.toLowerCase(),
+            responseLength: 'detailed',
+            subjects: [subject]
+          },
+          conversationContext: []
+        }
+      });
+      
+      if (error) throw error;
+      
+      return data?.response || "I couldn't generate a detailed plan right now, but here's a basic structure: Start with fundamentals, practice regularly, review concepts, and gradually increase difficulty.";
+    } catch (error) {
+      console.error('Error generating AI study plan:', error);
+      return `Here's a structured approach for studying ${subject}:
+
+**Week 1-2: Foundation**
+- Review basic concepts and terminology
+- Create comprehensive notes
+- Complete practice exercises daily (30-60 minutes)
+
+**Week 3-4: Application**
+- Work on complex problems
+- Group study sessions
+- Create mind maps and summaries
+
+**Daily Schedule (${timePreference}):**
+- 25 minutes focused study
+- 5 minute break
+- Repeat 2-3 cycles
+- End with quick review
+
+**Assessment:**
+- Weekly self-tests
+- Practice problems
+- Teach concepts to someone else`;
+    }
+  };
+
+  const handleCreatePlan = async () => {
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "Please login to create a study plan",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    if (!subject.trim()) {
+      toast({
+        title: "Subject required",
+        description: "Please enter a subject for your study plan",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setLoading(true);
+    
+    try {
+      // Generate AI study plan
+      const aiPlan = await generateAIStudyPlan();
+      setGeneratedPlan(aiPlan);
+      setShowGeneratedPlan(true);
+      
+      // Save the study plan to Supabase
+      const { data, error } = await supabase
+        .from('study_plans')
+        .insert({
+          user_id: user.id,
+          title: `${subject} Study Plan`,
+          description: goals || `AI-generated study plan for ${subject}`,
+          subject: subject,
+          difficulty: selectedDifficulty,
+          duration_days: parseInt(duration),
+          ai_generated_plan: aiPlan
+        })
+        .select();
+      
+      if (error) {
+        throw error;
+      }
+      
+      setShowSuccess(true);
+      
+      toast({
+        title: "AI Study Plan Created!",
+        description: `Your personalized ${subject} study plan has been generated successfully.`,
+        variant: "default",
+      });
+      
+      setTimeout(() => {
+        setShowSuccess(false);
+      }, 5000);
+      
+      // Reset form
+      setSubject('');
+      setGoals('');
+      setSelectedDifficulty('Intermediate');
+      setTimePreference('morning');
+      setDuration('14');
+    } catch (error) {
+      console.error('Error creating study plan:', error);
+      toast({
+        title: "Failed to create study plan",
+        description: "Please try again later",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const fetchAllStudyPlans = async () => {
     if (!user) return;
     
@@ -104,87 +227,6 @@ const StudyPlanCreator: React.FC = () => {
     }
   };
 
-  const handleCreatePlan = async () => {
-    if (!user) {
-      toast({
-        title: "Authentication required",
-        description: "Please login to create a study plan",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    if (!subject.trim()) {
-      toast({
-        title: "Subject required",
-        description: "Please enter a subject for your study plan",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    setLoading(true);
-    
-    try {
-      // Save the study plan to Supabase
-      const { data, error } = await supabase
-        .from('study_plans')
-        .insert({
-          user_id: user.id,
-          title: `${subject} Study Plan`,
-          description: goals || `Study plan for ${subject}`,
-          subject: subject,
-          difficulty: selectedDifficulty,
-          duration_days: parseInt(duration)
-        })
-        .select();
-      
-      if (error) {
-        throw error;
-      }
-      
-      // Show success state and play sound
-      setShowSuccess(true);
-      playSuccessSound();
-      
-      // Show success toast
-      toast({
-        title: "Study Plan Created!",
-        description: `Your ${subject} study plan has been created successfully.`,
-        variant: "default",
-      });
-      
-      // Reset success state after 5 seconds
-      setTimeout(() => {
-        setShowSuccess(false);
-      }, 5000);
-      
-      // Reset form
-      setSubject('');
-      setGoals('');
-      setSelectedDifficulty('Intermediate');
-      setTimePreference('morning');
-      setDuration('14');
-    } catch (error) {
-      console.error('Error creating study plan:', error);
-      toast({
-        title: "Failed to create study plan",
-        description: "Please try again later",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  // Play success sound
-  const playSuccessSound = () => {
-    const audio = new Audio('/success.mp3');
-    audio.volume = 0.5;
-    audio.play().catch(err => console.error("Could not play sound:", err));
-  };
-  
-  // Format date to readable format
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return new Intl.DateTimeFormat('en-US', { 
@@ -198,11 +240,11 @@ const StudyPlanCreator: React.FC = () => {
     <Card className="w-full">
       <CardHeader>
         <CardTitle className="text-xl font-semibold flex items-center">
-          <BookOpen className="mr-2 h-5 w-5 text-primary" />
-          Create AI Study Plan
+          <Brain className="mr-2 h-5 w-5 text-primary" />
+          AI Study Plan Generator
         </CardTitle>
         <CardDescription>
-          Let our AI create a personalized study plan based on your goals and schedule
+          Get a personalized, AI-generated study plan tailored to your goals and schedule
         </CardDescription>
       </CardHeader>
       
@@ -210,9 +252,9 @@ const StudyPlanCreator: React.FC = () => {
         <div className="px-6 pb-3">
           <Alert className="bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-900">
             <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
-            <AlertTitle className="text-green-600 dark:text-green-400">Study Plan Created</AlertTitle>
+            <AlertTitle className="text-green-600 dark:text-green-400">AI Study Plan Generated!</AlertTitle>
             <AlertDescription className="text-green-600/80 dark:text-green-400/80">
-              Your personalized study plan has been successfully created.
+              Your personalized study plan has been created with AI assistance.
             </AlertDescription>
           </Alert>
         </div>
@@ -223,18 +265,18 @@ const StudyPlanCreator: React.FC = () => {
           <label className="text-sm font-medium" htmlFor="subject">Subject</label>
           <Input 
             id="subject" 
-            placeholder="E.g., Mathematics, History, Physics" 
+            placeholder="E.g., Calculus, World History, Spanish, Chemistry" 
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
           />
         </div>
         
         <div>
-          <label className="text-sm font-medium" htmlFor="goals">Your study goals</label>
+          <label className="text-sm font-medium" htmlFor="goals">Your learning goals</label>
           <Textarea 
             id="goals" 
-            placeholder="What do you want to achieve? E.g., Master calculus concepts for final exam"
-            className="min-h-[100px]"
+            placeholder="What do you want to achieve? E.g., Pass the final exam, understand derivatives, improve conversational skills"
+            className="min-h-[80px]"
             value={goals}
             onChange={(e) => setGoals(e.target.value)}
           />
@@ -244,7 +286,7 @@ const StudyPlanCreator: React.FC = () => {
           <div>
             <label className="text-sm font-medium flex items-center">
               <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
-              Study time preference
+              Preferred study time
             </label>
             <Select 
               value={timePreference}
@@ -265,7 +307,7 @@ const StudyPlanCreator: React.FC = () => {
           <div>
             <label className="text-sm font-medium flex items-center">
               <Calendar className="mr-2 h-4 w-4 text-muted-foreground" />
-              Duration
+              Study duration
             </label>
             <Select 
               value={duration}
@@ -293,7 +335,7 @@ const StudyPlanCreator: React.FC = () => {
                 key={level} 
                 variant={selectedDifficulty === level ? "default" : "outline"}
                 size="sm"
-                className={`flex-1 ${selectedDifficulty === level ? "" : "dark:text-foreground dark:hover:text-foreground"}`}
+                className="flex-1"
                 onClick={() => setSelectedDifficulty(level)}
               >
                 {level}
@@ -301,12 +343,25 @@ const StudyPlanCreator: React.FC = () => {
             ))}
           </div>
         </div>
+
+        {showGeneratedPlan && generatedPlan && (
+          <div className="pt-4 border-t">
+            <h3 className="text-sm font-medium mb-2 flex items-center">
+              <Brain className="mr-1 h-4 w-4" />
+              Your AI-Generated Study Plan
+            </h3>
+            <div className="bg-muted/50 rounded-lg p-4 max-h-80 overflow-y-auto">
+              <div className="prose prose-sm max-w-none dark:prose-invert">
+                <ReactMarkdown>{generatedPlan}</ReactMarkdown>
+              </div>
+            </div>
+          </div>
+        )}
         
-        {/* Recent Study Plans */}
         {recentPlans.length > 0 && (
-          <div className="pt-4">
+          <div className="pt-4 border-t">
             <div className="flex justify-between items-center mb-2">
-              <h3 className="text-sm font-medium">Your Recent Study Plans</h3>
+              <h3 className="text-sm font-medium">Recent Study Plans</h3>
               <Button 
                 variant="ghost" 
                 size="sm" 
@@ -314,7 +369,7 @@ const StudyPlanCreator: React.FC = () => {
                 disabled={loadingPlans}
               >
                 <FileText className="mr-1 h-4 w-4" />
-                View All Plans
+                View All
               </Button>
             </div>
             <div className="space-y-2">
@@ -334,9 +389,8 @@ const StudyPlanCreator: React.FC = () => {
           </div>
         )}
         
-        {/* All Study Plans Table */}
         {showPlans && allStudyPlans.length > 0 && (
-          <div className="pt-4 border-t mt-4">
+          <div className="pt-4 border-t">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-base font-medium">All Study Plans</h3>
               <Button 
@@ -344,7 +398,7 @@ const StudyPlanCreator: React.FC = () => {
                 size="sm" 
                 onClick={() => setShowPlans(false)}
               >
-                Hide Plans
+                Hide
               </Button>
             </div>
             <div className="rounded-md border">
@@ -371,13 +425,8 @@ const StudyPlanCreator: React.FC = () => {
             </div>
           </div>
         )}
-        
-        {loadingPlans && (
-          <div className="text-sm text-muted-foreground text-center">
-            Loading your study plans...
-          </div>
-        )}
       </CardContent>
+      
       <CardFooter>
         <Button 
           className="w-full gradient-bg hover:opacity-90 transition-opacity"
@@ -387,11 +436,11 @@ const StudyPlanCreator: React.FC = () => {
           {loading ? (
             <>
               <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-              Creating your plan...
+              Generating AI Study Plan...
             </>
           ) : (
             <>
-              <Plus className="mr-2 h-4 w-4" />
+              <Brain className="mr-2 h-4 w-4" />
               Generate AI Study Plan
             </>
           )}

@@ -1,489 +1,549 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Label } from '@/components/ui/label';
-import { toast } from '@/components/ui/sonner';
-import { BookText, Sparkles, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
-import { Separator } from '@/components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { toast } from '@/hooks/use-toast';
+import { Brain, Clock, CheckCircle, XCircle, RefreshCw, Trophy, Target, RotateCcw } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
 
-interface QuizQuestion {
-  id: string;
+interface Question {
+  id: number;
   question: string;
   options: string[];
   correctAnswer: number;
+  explanation: string;
+  difficulty: string;
+}
+
+interface QuizResult {
+  score: number;
+  total: number;
+  timeSpent: number;
+  subject: string;
 }
 
 const QuizGenerator: React.FC = () => {
-  const [topic, setTopic] = useState('');
-  const [difficulty, setDifficulty] = useState('medium');
-  const [questionCount, setQuestionCount] = useState(5);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [questions, setQuestions] = useState<QuizQuestion[]>([]);
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [selectedAnswers, setSelectedAnswers] = useState<Record<string, number>>({});
-  const [quizSubmitted, setQuizSubmitted] = useState(false);
-  const [score, setScore] = useState(0);
+  const [subject, setSubject] = useState('');
+  const [difficulty, setDifficulty] = useState('intermediate');
+  const [questionCount, setQuestionCount] = useState('5');
+  const [loading, setLoading] = useState(false);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [selectedAnswers, setSelectedAnswers] = useState<number[]>([]);
+  const [showResults, setShowResults] = useState(false);
+  const [quizStarted, setQuizStarted] = useState(false);
+  const [startTime, setStartTime] = useState<Date | null>(null);
+  const [quizResults, setQuizResults] = useState<QuizResult | null>(null);
+  const [timeRemaining, setTimeRemaining] = useState(0);
+  const [showExplanation, setShowExplanation] = useState(false);
 
-  // Sample quiz questions by topic
-  const sampleQuizzes: Record<string, QuizQuestion[]> = {
-    "mathematics": [
-      {
-        id: "math1",
-        question: "What is the value of π (pi) to two decimal places?",
-        options: ["3.14", "3.15", "3.12", "3.17"],
-        correctAnswer: 0
-      },
-      {
-        id: "math2",
-        question: "What is the square root of 144?",
-        options: ["14", "12", "10", "16"],
-        correctAnswer: 1
-      },
-      {
-        id: "math3",
-        question: "If y = 3x + 7 and x = 2, what is the value of y?",
-        options: ["11", "13", "17", "10"],
-        correctAnswer: 2
-      },
-      {
-        id: "math4",
-        question: "What is the area of a circle with radius 5?",
-        options: ["25π", "10π", "5π", "15π"],
-        correctAnswer: 0
-      },
-      {
-        id: "math5",
-        question: "If a triangle has angles of 30° and 60°, what is the third angle?",
-        options: ["90°", "60°", "45°", "30°"],
-        correctAnswer: 0
-      }
-    ],
-    "science": [
-      {
-        id: "sci1",
-        question: "Which element has the chemical symbol 'O'?",
-        options: ["Gold", "Oxygen", "Osmium", "Oganesson"],
-        correctAnswer: 1
-      },
-      {
-        id: "sci2",
-        question: "What is the speed of light in a vacuum?",
-        options: ["300,000 m/s", "300,000 km/s", "3,000,000 m/s", "3,000,000 km/s"],
-        correctAnswer: 1
-      },
-      {
-        id: "sci3",
-        question: "Which planet is known as the Red Planet?",
-        options: ["Venus", "Jupiter", "Mars", "Mercury"],
-        correctAnswer: 2
-      },
-      {
-        id: "sci4",
-        question: "What is the chemical formula for water?",
-        options: ["H2O", "CO2", "O2", "H2O2"],
-        correctAnswer: 0
-      },
-      {
-        id: "sci5",
-        question: "What is the largest organ in the human body?",
-        options: ["Brain", "Liver", "Heart", "Skin"],
-        correctAnswer: 3
-      }
-    ],
-    "history": [
-      {
-        id: "hist1",
-        question: "In which year did World War II end?",
-        options: ["1945", "1939", "1918", "1950"],
-        correctAnswer: 0
-      },
-      {
-        id: "hist2",
-        question: "Who was the first president of the United States?",
-        options: ["Thomas Jefferson", "John Adams", "George Washington", "Abraham Lincoln"],
-        correctAnswer: 2
-      },
-      {
-        id: "hist3",
-        question: "Which ancient civilization built the pyramids?",
-        options: ["Greeks", "Romans", "Mayans", "Egyptians"],
-        correctAnswer: 3
-      },
-      {
-        id: "hist4",
-        question: "The Renaissance period began in which country?",
-        options: ["France", "Italy", "England", "Spain"],
-        correctAnswer: 1
-      },
-      {
-        id: "hist5",
-        question: "Who wrote the Declaration of Independence?",
-        options: ["George Washington", "Benjamin Franklin", "Thomas Jefferson", "John Adams"],
-        correctAnswer: 2
-      }
-    ],
-    "literature": [
-      {
-        id: "lit1",
-        question: "Who wrote 'Romeo and Juliet'?",
-        options: ["Charles Dickens", "Jane Austen", "William Shakespeare", "Mark Twain"],
-        correctAnswer: 2
-      },
-      {
-        id: "lit2",
-        question: "Which novel begins with the line 'It was the best of times, it was the worst of times'?",
-        options: ["Pride and Prejudice", "Great Expectations", "A Tale of Two Cities", "Moby Dick"],
-        correctAnswer: 2
-      },
-      {
-        id: "lit3",
-        question: "Who wrote 'To Kill a Mockingbird'?",
-        options: ["Harper Lee", "J.D. Salinger", "F. Scott Fitzgerald", "Ernest Hemingway"],
-        correctAnswer: 0
-      },
-      {
-        id: "lit4",
-        question: "Which of these is NOT one of the Harry Potter books?",
-        options: ["The Chamber of Secrets", "The Half-Blood Prince", "The Deathly Hallows", "The Golden Compass"],
-        correctAnswer: 3
-      },
-      {
-        id: "lit5",
-        question: "Who created the character Sherlock Holmes?",
-        options: ["Agatha Christie", "Arthur Conan Doyle", "Edgar Allan Poe", "H.G. Wells"],
-        correctAnswer: 1
-      }
-    ]
-  };
+  // Timer effect
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (quizStarted && !showResults && timeRemaining > 0) {
+      interval = setInterval(() => {
+        setTimeRemaining(prev => {
+          if (prev <= 1) {
+            handleQuizComplete();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [quizStarted, showResults, timeRemaining]);
 
-  const generateQuiz = () => {
-    if (!topic.trim()) {
-      toast.error("Please enter a topic", {
-        description: "A topic is required to generate quiz questions"
+  const generateQuestions = async () => {
+    if (!subject.trim()) {
+      toast({
+        title: "Subject required",
+        description: "Please enter a subject for the quiz",
+        variant: "destructive"
       });
       return;
     }
-    
-    setIsGenerating(true);
-    
-    // Simulate API call delay
-    setTimeout(() => {
-      // Check if we have a sample quiz for this topic
-      let lowerTopic = topic.toLowerCase();
-      let quizQuestions: QuizQuestion[] = [];
-      
-      if (lowerTopic.includes("math")) {
-        quizQuestions = sampleQuizzes.mathematics;
-      } else if (lowerTopic.includes("sci")) {
-        quizQuestions = sampleQuizzes.science;
-      } else if (lowerTopic.includes("hist")) {
-        quizQuestions = sampleQuizzes.history;
-      } else if (lowerTopic.includes("lit") || lowerTopic.includes("book") || lowerTopic.includes("novel")) {
-        quizQuestions = sampleQuizzes.literature;
-      } else {
-        // Default to random questions from all topics
-        const allTopics = Object.keys(sampleQuizzes);
-        const randomQuestions: QuizQuestion[] = [];
-        
-        for (let i = 0; i < Math.min(questionCount, 5); i++) {
-          const randomTopic = allTopics[Math.floor(Math.random() * allTopics.length)];
-          const topicQuestions = sampleQuizzes[randomTopic];
-          randomQuestions.push(topicQuestions[i % topicQuestions.length]);
+
+    setLoading(true);
+    try {
+      // Generate unique questions using AI
+      const timestamp = Date.now();
+      const { data, error } = await supabase.functions.invoke('ai-tutor', {
+        body: {
+          query: `Generate exactly ${questionCount} unique multiple-choice questions about ${subject} at ${difficulty} level. 
+          
+          Important: Make these questions different from any previous quiz by including this unique identifier: ${timestamp}
+          
+          Format each question as:
+          Q1: [Question text]
+          A) [Option 1]
+          B) [Option 2] 
+          C) [Option 3]
+          D) [Option 4]
+          Correct: [Letter]
+          Explanation: [Brief explanation of the correct answer]
+          
+          Make sure questions test practical understanding, not just memorization. Include varied question types: conceptual, application-based, and analytical.`,
+          userPreferences: {
+            learningStyle: 'reading/writing',
+            difficulty: difficulty,
+            responseLength: 'detailed',
+            subjects: [subject]
+          },
+          conversationContext: []
         }
-        
-        quizQuestions = randomQuestions;
+      });
+
+      if (error) throw error;
+
+      const response = data?.response || '';
+      const parsedQuestions = parseQuestions(response);
+      
+      if (parsedQuestions.length === 0) {
+        // Fallback questions if AI parsing fails
+        const fallbackQuestions = generateFallbackQuestions(subject, parseInt(questionCount));
+        setQuestions(fallbackQuestions);
+      } else {
+        setQuestions(parsedQuestions);
       }
       
-      // Adjust for the requested number of questions
-      quizQuestions = quizQuestions.slice(0, Math.min(questionCount, quizQuestions.length));
+      setSelectedAnswers(new Array(parsedQuestions.length).fill(-1));
+      setQuizStarted(true);
+      setStartTime(new Date());
+      setCurrentQuestion(0);
+      setShowResults(false);
+      setShowExplanation(false);
       
-      setQuestions(quizQuestions);
-      setCurrentQuestionIndex(0);
-      setSelectedAnswers({});
-      setQuizSubmitted(false);
-      setIsGenerating(false);
+      // Set timer (2 minutes per question)
+      setTimeRemaining(parseInt(questionCount) * 120);
       
-      toast.success("Quiz generated", {
-        description: `${quizQuestions.length} questions on ${topic}`
+      toast({
+        title: "Quiz Generated!",
+        description: `${parsedQuestions.length} unique questions ready for ${subject}`,
+        variant: "default",
       });
-    }, 2000);
+    } catch (error) {
+      console.error('Error generating quiz:', error);
+      
+      // Generate fallback questions
+      const fallbackQuestions = generateFallbackQuestions(subject, parseInt(questionCount));
+      setQuestions(fallbackQuestions);
+      setSelectedAnswers(new Array(fallbackQuestions.length).fill(-1));
+      setQuizStarted(true);
+      setStartTime(new Date());
+      setCurrentQuestion(0);
+      setShowResults(false);
+      
+      setTimeRemaining(parseInt(questionCount) * 120);
+      
+      toast({
+        title: "Quiz Generated",
+        description: "Generated quiz with standard questions",
+        variant: "default",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleAnswerSelect = (questionId: string, answerIndex: number) => {
-    setSelectedAnswers(prev => ({
-      ...prev,
-      [questionId]: answerIndex
+  const parseQuestions = (response: string): Question[] => {
+    const questionBlocks = response.split(/Q\d+:/).filter(block => block.trim());
+    const parsedQuestions: Question[] = [];
+
+    questionBlocks.forEach((block, index) => {
+      try {
+        const lines = block.trim().split('\n').filter(line => line.trim());
+        if (lines.length < 6) return;
+
+        const questionText = lines[0].trim();
+        const options: string[] = [];
+        let correctAnswer = 0;
+        let explanation = '';
+
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (line.match(/^[A-D]\)/)) {
+            options.push(line.substring(2).trim());
+          } else if (line.startsWith('Correct:')) {
+            const correctLetter = line.substring(8).trim().toUpperCase();
+            correctAnswer = correctLetter.charCodeAt(0) - 65; // A=0, B=1, C=2, D=3
+          } else if (line.startsWith('Explanation:')) {
+            explanation = line.substring(12).trim();
+          }
+        }
+
+        if (questionText && options.length === 4 && explanation) {
+          parsedQuestions.push({
+            id: index + 1,
+            question: questionText,
+            options,
+            correctAnswer,
+            explanation,
+            difficulty
+          });
+        }
+      } catch (error) {
+        console.error('Error parsing question:', error);
+      }
+    });
+
+    return parsedQuestions;
+  };
+
+  const generateFallbackQuestions = (subject: string, count: number): Question[] => {
+    const baseQuestions = [
+      {
+        question: `What is a fundamental concept in ${subject}?`,
+        options: ["Basic principle", "Advanced theory", "Complex application", "Historical context"],
+        correctAnswer: 0,
+        explanation: "Understanding basic principles is essential for mastering any subject."
+      },
+      {
+        question: `How would you apply ${subject} knowledge in practice?`,
+        options: ["Through memorization", "Through practical application", "Through theory only", "Through passive reading"],
+        correctAnswer: 1,
+        explanation: "Practical application helps reinforce theoretical knowledge."
+      },
+      {
+        question: `What is the best approach to study ${subject}?`,
+        options: ["Random topics", "Structured learning", "Only advanced topics", "Skip fundamentals"],
+        correctAnswer: 1,
+        explanation: "Structured learning provides a solid foundation for understanding."
+      },
+      {
+        question: `Why is ${subject} important in today's world?`,
+        options: ["It's not important", "Has practical applications", "Only for academics", "Historical interest only"],
+        correctAnswer: 1,
+        explanation: "Most subjects have practical applications that benefit society."
+      },
+      {
+        question: `What skill does studying ${subject} develop?`,
+        options: ["Memory only", "Critical thinking", "Basic reading", "Simple recall"],
+        correctAnswer: 1,
+        explanation: "Studying any subject develops critical thinking and analytical skills."
+      }
+    ];
+
+    return baseQuestions.slice(0, count).map((q, index) => ({
+      id: index + 1,
+      ...q,
+      difficulty
     }));
   };
 
+  const handleAnswerSelect = (answerIndex: number) => {
+    const newSelectedAnswers = [...selectedAnswers];
+    newSelectedAnswers[currentQuestion] = answerIndex;
+    setSelectedAnswers(newSelectedAnswers);
+  };
+
   const handleNext = () => {
-    if (currentQuestionIndex < questions.length - 1) {
-      setCurrentQuestionIndex(prev => prev + 1);
+    if (currentQuestion < questions.length - 1) {
+      setCurrentQuestion(currentQuestion + 1);
+      setShowExplanation(false);
+    } else {
+      handleQuizComplete();
     }
   };
 
   const handlePrevious = () => {
-    if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(prev => prev - 1);
+    if (currentQuestion > 0) {
+      setCurrentQuestion(currentQuestion - 1);
+      setShowExplanation(false);
     }
   };
 
-  const handleSubmitQuiz = () => {
-    let correctCount = 0;
-    
-    questions.forEach(question => {
-      if (selectedAnswers[question.id] === question.correctAnswer) {
-        correctCount++;
-      }
-    });
-    
-    const percentage = Math.round((correctCount / questions.length) * 100);
-    setScore(percentage);
-    setQuizSubmitted(true);
-    
-    toast.success("Quiz submitted", {
-      description: `Your score: ${percentage}%`
+  const handleQuizComplete = () => {
+    if (!startTime) return;
+
+    const endTime = new Date();
+    const timeSpent = Math.round((endTime.getTime() - startTime.getTime()) / 1000);
+    const score = selectedAnswers.reduce((total, answer, index) => {
+      return total + (answer === questions[index]?.correctAnswer ? 1 : 0);
+    }, 0);
+
+    const result: QuizResult = {
+      score,
+      total: questions.length,
+      timeSpent,
+      subject
+    };
+
+    setQuizResults(result);
+    setShowResults(true);
+    setQuizStarted(false);
+
+    toast({
+      title: "Quiz Completed!",
+      description: `You scored ${score}/${questions.length} (${Math.round((score / questions.length) * 100)}%)`,
+      variant: "default",
     });
   };
 
-  const startNewQuiz = () => {
+  const resetQuiz = () => {
     setQuestions([]);
-    setTopic('');
-    setQuizSubmitted(false);
-    setSelectedAnswers({});
+    setCurrentQuestion(0);
+    setSelectedAnswers([]);
+    setShowResults(false);
+    setQuizStarted(false);
+    setStartTime(null);
+    setQuizResults(null);
+    setTimeRemaining(0);
+    setShowExplanation(false);
+    setSubject('');
+    setDifficulty('intermediate');
+    setQuestionCount('5');
   };
 
-  const currentQuestion = questions[currentQuestionIndex];
-  const isQuizComplete = Object.keys(selectedAnswers).length === questions.length;
-  const isLastQuestion = currentQuestionIndex === questions.length - 1;
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  if (showResults && quizResults) {
+    const percentage = Math.round((quizResults.score / quizResults.total) * 100);
+    return (
+      <Card className="w-full">
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl flex items-center justify-center">
+            <Trophy className="mr-2 h-6 w-6 text-yellow-500" />
+            Quiz Results
+          </CardTitle>
+          <CardDescription>
+            {subject} - {difficulty} level
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="text-center space-y-4">
+            <div className="text-4xl font-bold text-primary">
+              {quizResults.score}/{quizResults.total}
+            </div>
+            <Progress value={percentage} className="w-full" />
+            <div className="text-lg">
+              {percentage >= 80 ? "Excellent!" : percentage >= 60 ? "Good job!" : "Keep practicing!"}
+            </div>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="bg-muted rounded-lg p-3">
+                <div className="font-medium">Score</div>
+                <div className="text-2xl font-bold">{percentage}%</div>
+              </div>
+              <div className="bg-muted rounded-lg p-3">
+                <div className="font-medium">Time</div>
+                <div className="text-2xl font-bold">{formatTime(quizResults.timeSpent)}</div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="space-y-3">
+            <h3 className="font-medium">Review Your Answers:</h3>
+            {questions.map((question, index) => (
+              <div key={question.id} className="border rounded-lg p-3">
+                <div className="flex items-start gap-2">
+                  {selectedAnswers[index] === question.correctAnswer ? (
+                    <CheckCircle className="h-5 w-5 text-green-500 mt-0.5" />
+                  ) : (
+                    <XCircle className="h-5 w-5 text-red-500 mt-0.5" />
+                  )}
+                  <div className="flex-1">
+                    <div className="font-medium text-sm">{question.question}</div>
+                    <div className="text-sm text-muted-foreground mt-1">
+                      Your answer: {question.options[selectedAnswers[index]] || 'Not answered'}
+                    </div>
+                    <div className="text-sm text-green-600 mt-1">
+                      Correct: {question.options[question.correctAnswer]}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-2">
+                      {question.explanation}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+        <CardFooter>
+          <Button onClick={resetQuiz} className="w-full">
+            <RotateCcw className="mr-2 h-4 w-4" />
+            Take New Quiz
+          </Button>
+        </CardFooter>
+      </Card>
+    );
+  }
+
+  if (quizStarted && questions.length > 0) {
+    const currentQ = questions[currentQuestion];
+    const progress = ((currentQuestion + 1) / questions.length) * 100;
+
+    return (
+      <Card className="w-full">
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <div>
+              <CardTitle className="text-lg">
+                Question {currentQuestion + 1} of {questions.length}
+              </CardTitle>
+              <CardDescription>{subject} - {difficulty}</CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              <Badge variant={timeRemaining < 60 ? "destructive" : "default"}>
+                {formatTime(timeRemaining)}
+              </Badge>
+            </div>
+          </div>
+          <Progress value={progress} className="w-full" />
+        </CardHeader>
+        
+        <CardContent className="space-y-4">
+          <div className="text-lg font-medium">{currentQ.question}</div>
+          
+          <div className="space-y-2">
+            {currentQ.options.map((option, index) => (
+              <Button
+                key={index}
+                variant={selectedAnswers[currentQuestion] === index ? "default" : "outline"}
+                className="w-full justify-start text-left h-auto p-3"
+                onClick={() => handleAnswerSelect(index)}
+              >
+                <span className="font-medium mr-2">{String.fromCharCode(65 + index)})</span>
+                {option}
+              </Button>
+            ))}
+          </div>
+
+          {showExplanation && selectedAnswers[currentQuestion] !== -1 && (
+            <div className="mt-4 p-3 bg-muted rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                {selectedAnswers[currentQuestion] === currentQ.correctAnswer ? (
+                  <CheckCircle className="h-5 w-5 text-green-500" />
+                ) : (
+                  <XCircle className="h-5 w-5 text-red-500" />
+                )}
+                <span className="font-medium">
+                  {selectedAnswers[currentQuestion] === currentQ.correctAnswer ? "Correct!" : "Incorrect"}
+                </span>
+              </div>
+              <div className="text-sm">{currentQ.explanation}</div>
+              {selectedAnswers[currentQuestion] !== currentQ.correctAnswer && (
+                <div className="text-sm mt-2 text-green-600">
+                  Correct answer: {String.fromCharCode(65 + currentQ.correctAnswer)}) {currentQ.options[currentQ.correctAnswer]}
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+        
+        <CardFooter className="flex justify-between">
+          <Button 
+            variant="outline" 
+            onClick={handlePrevious}
+            disabled={currentQuestion === 0}
+          >
+            Previous
+          </Button>
+          
+          <div className="flex gap-2">
+            {selectedAnswers[currentQuestion] !== -1 && !showExplanation && (
+              <Button 
+                variant="secondary"
+                onClick={() => setShowExplanation(true)}
+              >
+                Show Answer
+              </Button>
+            )}
+            
+            <Button 
+              onClick={currentQuestion === questions.length - 1 ? handleQuizComplete : handleNext}
+              disabled={selectedAnswers[currentQuestion] === -1}
+            >
+              {currentQuestion === questions.length - 1 ? 'Finish Quiz' : 'Next'}
+            </Button>
+          </div>
+        </CardFooter>
+      </Card>
+    );
+  }
 
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle className="text-xl font-semibold flex items-center gap-2">
-          <BookText className="h-5 w-5 text-primary" />
+        <CardTitle className="text-xl font-semibold flex items-center">
+          <Target className="mr-2 h-5 w-5 text-primary" />
           AI Quiz Generator
         </CardTitle>
         <CardDescription>
-          Generate customized quizzes on any topic to test your knowledge
+          Generate personalized quizzes with unique questions every time
         </CardDescription>
       </CardHeader>
       
-      <CardContent>
-        {questions.length === 0 ? (
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">Topic</label>
-              <Input 
-                placeholder="Enter a subject (e.g., Mathematics, History, Science)"
-                value={topic}
-                onChange={(e) => setTopic(e.target.value)}
-                className="mt-1"
-              />
-            </div>
-            
-            <div>
-              <label className="text-sm font-medium">Difficulty Level</label>
-              <div className="flex space-x-4 mt-1">
-                <Button 
-                  variant={difficulty === 'easy' ? "default" : "outline"} 
-                  onClick={() => setDifficulty('easy')}
-                  size="sm"
-                >
-                  Easy
-                </Button>
-                <Button 
-                  variant={difficulty === 'medium' ? "default" : "outline"} 
-                  onClick={() => setDifficulty('medium')}
-                  size="sm"
-                >
-                  Medium
-                </Button>
-                <Button 
-                  variant={difficulty === 'hard' ? "default" : "outline"} 
-                  onClick={() => setDifficulty('hard')}
-                  size="sm"
-                >
-                  Hard
-                </Button>
-              </div>
-            </div>
-            
-            <div>
-              <label className="text-sm font-medium">Number of Questions</label>
-              <div className="flex space-x-4 mt-1">
-                <Button 
-                  variant={questionCount === 5 ? "default" : "outline"} 
-                  onClick={() => setQuestionCount(5)}
-                  size="sm"
-                >
-                  5
-                </Button>
-                <Button 
-                  variant={questionCount === 10 ? "default" : "outline"} 
-                  onClick={() => setQuestionCount(10)}
-                  size="sm"
-                >
-                  10
-                </Button>
-                <Button 
-                  variant={questionCount === 15 ? "default" : "outline"} 
-                  onClick={() => setQuestionCount(15)}
-                  size="sm"
-                >
-                  15
-                </Button>
-              </div>
-            </div>
-            
-            <div className="pt-4">
-              <Button 
-                className="w-full" 
-                onClick={generateQuiz} 
-                disabled={isGenerating}
-              >
-                {isGenerating ? (
-                  <>
-                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    Generate Quiz
-                  </>
-                )}
-              </Button>
-            </div>
+      <CardContent className="space-y-4">
+        <div>
+          <label className="text-sm font-medium" htmlFor="quiz-subject">Subject</label>
+          <Input 
+            id="quiz-subject"
+            placeholder="E.g., Mathematics, History, Biology, Programming" 
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+          />
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="text-sm font-medium">Difficulty Level</label>
+            <Select value={difficulty} onValueChange={setDifficulty}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="beginner">Beginner</SelectItem>
+                <SelectItem value="intermediate">Intermediate</SelectItem>
+                <SelectItem value="advanced">Advanced</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        ) : quizSubmitted ? (
-          <div className="space-y-6">
-            <div className="text-center py-4">
-              <h3 className="text-2xl font-bold">Quiz Results</h3>
-              <p className="text-muted-foreground">Topic: {topic}</p>
-            </div>
-            
-            <div className="flex flex-col items-center gap-2">
-              <div className="w-full max-w-xs">
-                <Progress value={score} className="h-4" />
-              </div>
-              <p className="text-xl font-bold">{score}%</p>
-              
-              {score >= 80 ? (
-                <p className="text-green-600 flex items-center gap-1">
-                  <CheckCircle className="h-4 w-4" /> Excellent work!
-                </p>
-              ) : score >= 60 ? (
-                <p className="text-amber-600">Good effort!</p>
-              ) : (
-                <p className="text-red-600 flex items-center gap-1">
-                  <XCircle className="h-4 w-4" /> Keep practicing!
-                </p>
-              )}
-            </div>
-            
-            <Separator />
-            
-            <div className="space-y-6">
-              <h4 className="font-medium">Review Questions</h4>
-              
-              {questions.map((q, index) => (
-                <div key={q.id} className="border rounded-md p-4">
-                  <p className="font-medium">{index + 1}. {q.question}</p>
-                  <div className="mt-2 space-y-2">
-                    {q.options.map((option, i) => (
-                      <div 
-                        key={i} 
-                        className={`p-2 rounded ${
-                          selectedAnswers[q.id] === i && q.correctAnswer === i
-                            ? 'bg-green-100 border border-green-500'
-                            : selectedAnswers[q.id] === i && q.correctAnswer !== i
-                              ? 'bg-red-100 border border-red-500'
-                              : q.correctAnswer === i
-                                ? 'bg-green-50 border border-green-500'
-                                : 'bg-slate-50'
-                        }`}
-                      >
-                        {option}
-                        {selectedAnswers[q.id] === i && q.correctAnswer === i && (
-                          <CheckCircle className="h-4 w-4 inline ml-2 text-green-600" />
-                        )}
-                        {selectedAnswers[q.id] === i && q.correctAnswer !== i && (
-                          <XCircle className="h-4 w-4 inline ml-2 text-red-600" />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
+          
+          <div>
+            <label className="text-sm font-medium">Number of Questions</label>
+            <Select value={questionCount} onValueChange={setQuestionCount}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="3">3 Questions</SelectItem>
+                <SelectItem value="5">5 Questions</SelectItem>
+                <SelectItem value="10">10 Questions</SelectItem>
+                <SelectItem value="15">15 Questions</SelectItem>
+                <SelectItem value="20">20 Questions</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        ) : (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Question {currentQuestionIndex + 1} of {questions.length}</span>
-              <span className="text-sm">{topic} · {difficulty}</span>
-            </div>
-            
-            <Progress value={(currentQuestionIndex + 1) / questions.length * 100} className="h-2" />
-            
-            <div className="py-4">
-              <h3 className="text-xl font-medium mb-4">{currentQuestion.question}</h3>
-              
-              <RadioGroup 
-                value={selectedAnswers[currentQuestion.id]?.toString()} 
-                onValueChange={(value) => handleAnswerSelect(currentQuestion.id, parseInt(value))}
-                className="space-y-3"
-              >
-                {currentQuestion.options.map((option, i) => (
-                  <div key={i} className="flex items-center space-x-2 border rounded-md p-3 hover:bg-slate-50">
-                    <RadioGroupItem value={i.toString()} id={`option-${i}`} />
-                    <Label htmlFor={`option-${i}`} className="flex-grow cursor-pointer">{option}</Label>
-                  </div>
-                ))}
-              </RadioGroup>
-            </div>
-          </div>
-        )}
+        </div>
       </CardContent>
       
-      <CardFooter className="flex justify-between">
-        {questions.length > 0 && !quizSubmitted ? (
-          <>
-            <Button
-              variant="outline"
-              onClick={handlePrevious}
-              disabled={currentQuestionIndex === 0}
-            >
-              Previous
-            </Button>
-            
-            {isLastQuestion ? (
-              <Button 
-                onClick={handleSubmitQuiz}
-                disabled={!isQuizComplete}
-              >
-                Submit Quiz
-              </Button>
-            ) : (
-              <Button 
-                onClick={handleNext}
-                disabled={!selectedAnswers[currentQuestion.id] && selectedAnswers[currentQuestion.id] !== 0}
-              >
-                Next
-              </Button>
-            )}
-          </>
-        ) : quizSubmitted ? (
-          <Button onClick={startNewQuiz} className="w-full">
-            Create New Quiz
-          </Button>
-        ) : null}
+      <CardFooter>
+        <Button 
+          className="w-full"
+          onClick={generateQuestions}
+          disabled={loading || !subject.trim()}
+        >
+          {loading ? (
+            <>
+              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+              Generating Unique Quiz...
+            </>
+          ) : (
+            <>
+              <Brain className="mr-2 h-4 w-4" />
+              Generate New Quiz
+            </>
+          )}
+        </Button>
       </CardFooter>
     </Card>
   );
