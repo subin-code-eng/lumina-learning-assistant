@@ -62,6 +62,7 @@ export type Database = {
       }
       study_plans: {
         Row: {
+          ai_generated_plan: string | null
           created_at: string
           description: string | null
           difficulty: string
@@ -73,6 +74,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          ai_generated_plan?: string | null
           created_at?: string
           description?: string | null
           difficulty: string
@@ -84,6 +86,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          ai_generated_plan?: string | null
           created_at?: string
           description?: string | null
           difficulty?: string

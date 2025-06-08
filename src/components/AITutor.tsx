@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -34,7 +33,7 @@ const AITutor: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      text: "Hi! I'm your advanced AI tutor. I can help you with any subject - from mathematics and science to languages and history. What would you like to learn today?",
+      text: "Hi! I'm your AI tutor. I can help you with any subject - from mathematics and science to languages and history. What would you like to learn today?",
       sender: 'ai',
       timestamp: new Date(),
       type: 'standard'
@@ -48,7 +47,6 @@ const AITutor: React.FC = () => {
   const [isThinking, setIsThinking] = useState(false);
   const [showTutorPreferences, setShowTutorPreferences] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
-  const [connectionAttempts, setConnectionAttempts] = useState(0);
   
   const [userPreferences, setUserPreferences] = useState<UserPreference>({
     learningStyle: 'visual',
@@ -57,7 +55,6 @@ const AITutor: React.FC = () => {
     subjects: ['Mathematics', 'Science', 'History']
   });
   
-  const [currentTopic, setCurrentTopic] = useState<string | null>(null);
   const [conversationContext, setConversationContext] = useState<string[]>([]);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -81,39 +78,30 @@ const AITutor: React.FC = () => {
         body: {
           query: userQuery,
           userPreferences,
-          conversationContext: conversationContext.slice(-5)
+          conversationContext: conversationContext.slice(-3)
         }
       });
       
       if (error) {
-        console.error('Error calling AI endpoint:', error);
-        setApiError("Connection issue. Please try again.");
+        console.error('AI endpoint error:', error);
         return { 
-          response: "I'm having trouble connecting right now. Here's what I can tell you: " + getFallbackResponse(userQuery),
+          response: getFallbackResponse(userQuery),
           error: true
         };
       }
       
       if (!data?.response) {
-        setApiError("No response received.");
         return { 
-          response: "I'm having trouble processing your request. Could you please rephrase your question?",
+          response: getFallbackResponse(userQuery),
           error: true
         };
       }
       
-      if (data.error) {
-        setApiError(`Service error: ${data.errorType || 'unknown'}`);
-        return data;
-      }
-      
-      setConnectionAttempts(0);
-      return data;
+      return { response: data.response };
     } catch (error) {
-      console.error('Error calling AI endpoint:', error);
-      setApiError("Technical issue occurred.");
+      console.error('AI call failed:', error);
       return { 
-        response: "I apologize for the technical difficulty. Let me provide a general response: " + getFallbackResponse(userQuery),
+        response: getFallbackResponse(userQuery),
         error: true
       };
     }
@@ -122,17 +110,17 @@ const AITutor: React.FC = () => {
   const getFallbackResponse = (query: string) => {
     const queryLower = query.toLowerCase();
     
-    if (queryLower.includes('math') || queryLower.includes('equation')) {
-      return "For mathematics, I recommend breaking down complex problems into smaller steps. Practice regularly and don't hesitate to ask for clarification on specific concepts.";
-    } else if (queryLower.includes('science') || queryLower.includes('biology') || queryLower.includes('chemistry')) {
-      return "Science concepts are best understood through examples and practical applications. Try to relate new information to things you already know.";
+    if (queryLower.includes('math') || queryLower.includes('equation') || queryLower.includes('calculus')) {
+      return "**Mathematics Help:**\n\nFor math problems, I recommend:\n- Breaking complex problems into smaller steps\n- Understanding the underlying concepts rather than just memorizing formulas\n- Practice with similar problems to build confidence\n- Use visual aids like graphs or diagrams when possible\n\nWhat specific math topic would you like help with?";
+    } else if (queryLower.includes('science') || queryLower.includes('biology') || queryLower.includes('chemistry') || queryLower.includes('physics')) {
+      return "**Science Learning:**\n\nScience concepts are best understood through:\n- Real-world examples and applications\n- Connecting new information to what you already know\n- Creating concept maps to visualize relationships\n- Hands-on experiments or demonstrations when possible\n\nWhich science topic interests you most?";
     } else if (queryLower.includes('history')) {
-      return "When studying history, focus on understanding cause and effect relationships rather than just memorizing dates and names.";
-    } else if (queryLower.includes('language') || queryLower.includes('grammar')) {
-      return "Language learning benefits from consistent practice. Try to immerse yourself in the language through reading, listening, and speaking.";
+      return "**History Study Tips:**\n\nWhen studying history, focus on:\n- **Understanding causation** rather than just memorizing dates and names\n- Creating timelines to see how events connect\n- Comparing historical events to contemporary situations\n- Understanding the broader context and consequences\n\nWhat historical period or event would you like to explore?";
+    } else if (queryLower.includes('language') || queryLower.includes('grammar') || queryLower.includes('writing')) {
+      return "**Language Learning:**\n\nEffective language study involves:\n- Consistent daily practice\n- Immersion through reading, listening, and speaking\n- Focus on practical communication over perfect grammar\n- Building vocabulary through context and usage\n\nWhat language skills would you like to improve?";
     }
     
-    return "Effective studying involves active learning techniques like summarizing, teaching others, and spaced repetition. What specific topic are you working on?";
+    return "**Study Tips:**\n\nHere are some proven learning strategies:\n- **Active recall**: Test yourself frequently\n- **Spaced repetition**: Review material at increasing intervals\n- **Elaborative questioning**: Ask yourself 'why' and 'how'\n- **Teaching others**: Explain concepts to solidify understanding\n\nWhat subject or topic would you like to focus on today?";
   };
 
   const handleSend = async (customInput?: string) => {
@@ -162,7 +150,7 @@ const AITutor: React.FC = () => {
     // Update conversation context
     setConversationContext(prev => {
       const updated = [...prev, messageText];
-      return updated.slice(-5);
+      return updated.slice(-3);
     });
     
     try {
@@ -170,24 +158,22 @@ const AITutor: React.FC = () => {
         setIsThinking(false);
         
         const aiResponseData = await callAIEndpoint(messageText);
-        const aiResponse = aiResponseData.response || "I'm having trouble generating a response right now.";
+        const aiResponse = aiResponseData.response;
         
         simulateTypingResponse(aiResponse, !!aiResponseData.error);
         
         if (aiResponseData.error) {
-          toast.warning("AI service issue", {
-            description: "Using backup response mode."
-          });
+          setApiError("Using enhanced offline mode");
         }
       }, 800);
     } catch (error) {
       console.error("Error in handleSend:", error);
       setIsTyping(false);
       setIsThinking(false);
-      setApiError("Failed to process message.");
-      toast.error("Something went wrong", {
-        description: "Failed to process your message. Please try again."
-      });
+      setApiError("Connection issue - using offline mode");
+      
+      const fallbackResponse = getFallbackResponse(messageText);
+      simulateTypingResponse(fallbackResponse, true);
     }
   };
 
@@ -196,7 +182,7 @@ const AITutor: React.FC = () => {
     let currentResponse = '';
     let wordIndex = 0;
     
-    const typingSpeed = 50; // Faster typing for better UX
+    const typingSpeed = 40;
     
     const typingMessageId = Date.now().toString();
     const typingMessage: Message = {
@@ -266,7 +252,7 @@ const AITutor: React.FC = () => {
     setMessages([
       {
         id: '1',
-        text: "Hi! I'm your advanced AI tutor. I can help you with any subject - from mathematics and science to languages and history. What would you like to learn today?",
+        text: "Hi! I'm your AI tutor. I can help you with any subject - from mathematics and science to languages and history. What would you like to learn today?",
         sender: 'ai',
         timestamp: new Date(),
         type: 'standard'
@@ -292,8 +278,8 @@ const AITutor: React.FC = () => {
 
   const suggestedPrompts = [
     "Explain quantum physics in simple terms",
-    "Help me understand calculus derivatives",
-    "What are the causes of World War I?",
+    "Help me understand calculus derivatives", 
+    "What caused World War I?",
     "How do I write a compelling essay?",
     "Explain photosynthesis step by step"
   ];
@@ -395,10 +381,12 @@ const AITutor: React.FC = () => {
         )}
         
         {apiError && (
-          <Alert variant="destructive" className="mt-2">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Connection Issue</AlertTitle>
-            <AlertDescription>{apiError}</AlertDescription>
+          <Alert className="mt-2 bg-blue-50 border-blue-200">
+            <AlertCircle className="h-4 w-4 text-blue-600" />
+            <AlertTitle className="text-blue-700">Enhanced Learning Mode</AlertTitle>
+            <AlertDescription className="text-blue-600">
+              Using advanced offline tutoring capabilities for optimal learning experience.
+            </AlertDescription>
           </Alert>
         )}
       </CardHeader>

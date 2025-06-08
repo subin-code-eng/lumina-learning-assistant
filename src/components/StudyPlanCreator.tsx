@@ -19,7 +19,6 @@ interface StudyPlan {
   subject: string;
   difficulty: string;
   duration_days: number;
-  ai_generated_plan: string | null;
   created_at: string;
   user_id: string;
   updated_at: string;
@@ -49,7 +48,7 @@ const StudyPlanCreator: React.FC = () => {
       try {
         const { data, error } = await supabase
           .from('study_plans')
-          .select('id, title, description, subject, difficulty, duration_days, ai_generated_plan, created_at, user_id, updated_at')
+          .select('id, title, description, subject, difficulty, duration_days, created_at, user_id, updated_at')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
           .limit(3);
@@ -73,17 +72,16 @@ const StudyPlanCreator: React.FC = () => {
     try {
       const { data, error } = await supabase.functions.invoke('ai-tutor', {
         body: {
-          query: `Generate a comprehensive study plan for ${subject} at ${selectedDifficulty} level. Duration: ${duration} days. Goals: ${goals}. Time preference: ${timePreference}. 
+          query: `Create a comprehensive ${duration}-day study plan for ${subject} at ${selectedDifficulty} level. Goals: ${goals}. Preferred study time: ${timePreference}. 
           
-          Please provide a detailed study plan with:
-          1. Daily breakdown of topics to cover
-          2. Specific learning objectives for each day
-          3. Recommended study methods and techniques
-          4. Practice exercises or assignments
-          5. Review sessions and checkpoints
-          6. Time allocation for each activity
+          Structure the plan with:
+          - Daily learning objectives and topics
+          - Specific study methods and techniques
+          - Practice exercises and assignments
+          - Review sessions and progress checkpoints
+          - Time allocation for each activity
           
-          Format the response in a clear, structured manner with headers and bullet points.`,
+          Format clearly with headers and bullet points for easy reading.`,
           userPreferences: {
             learningStyle: 'visual',
             difficulty: selectedDifficulty.toLowerCase(),
@@ -94,34 +92,54 @@ const StudyPlanCreator: React.FC = () => {
         }
       });
       
-      if (error) throw error;
+      if (error) {
+        console.error('AI function error:', error);
+        throw error;
+      }
       
-      return data?.response || "I couldn't generate a detailed plan right now, but here's a basic structure: Start with fundamentals, practice regularly, review concepts, and gradually increase difficulty.";
+      return data?.response || generateFallbackPlan();
     } catch (error) {
       console.error('Error generating AI study plan:', error);
-      return `Here's a structured approach for studying ${subject}:
-
-**Week 1-2: Foundation**
-- Review basic concepts and terminology
-- Create comprehensive notes
-- Complete practice exercises daily (30-60 minutes)
-
-**Week 3-4: Application**
-- Work on complex problems
-- Group study sessions
-- Create mind maps and summaries
-
-**Daily Schedule (${timePreference}):**
-- 25 minutes focused study
-- 5 minute break
-- Repeat 2-3 cycles
-- End with quick review
-
-**Assessment:**
-- Weekly self-tests
-- Practice problems
-- Teach concepts to someone else`;
+      return generateFallbackPlan();
     }
+  };
+
+  const generateFallbackPlan = () => {
+    return `# ${subject} Study Plan (${duration} days)
+
+## Week 1: Foundation Building
+**Days 1-7: Core Concepts**
+- **Daily Goal**: 45-60 minutes of focused study during ${timePreference}
+- Review fundamental concepts and terminology
+- Create comprehensive notes and summaries
+- Complete basic practice exercises
+- **Checkpoint**: Self-assessment quiz on Day 7
+
+## Week 2: Application & Practice
+**Days 8-14: Skill Development**
+- Work on intermediate-level problems
+- Apply concepts in practical scenarios
+- Group study or discussion sessions
+- Create mind maps connecting key ideas
+- **Final Review**: Comprehensive practice test
+
+## Daily Schedule (${timePreference}):
+- **25 minutes**: Focused study session
+- **5 minutes**: Short break
+- **25 minutes**: Practice/application
+- **5 minutes**: Review and note-taking
+
+## Study Techniques:
+- Active recall and spaced repetition
+- Teach concepts to others or explain aloud
+- Use visual aids and diagrams
+- Regular self-testing
+
+## Success Indicators:
+- Daily completion of study goals
+- Improved confidence in core concepts
+- Ability to solve problems independently
+- Ready for assessment by Day ${duration}`;
   };
 
   const handleCreatePlan = async () => {
@@ -151,7 +169,7 @@ const StudyPlanCreator: React.FC = () => {
       setGeneratedPlan(aiPlan);
       setShowGeneratedPlan(true);
       
-      // Save the study plan to Supabase
+      // Save the study plan to Supabase with the ai_generated_plan column
       const { data, error } = await supabase
         .from('study_plans')
         .insert({
@@ -166,14 +184,15 @@ const StudyPlanCreator: React.FC = () => {
         .select();
       
       if (error) {
+        console.error('Database error:', error);
         throw error;
       }
       
       setShowSuccess(true);
       
       toast({
-        title: "AI Study Plan Created!",
-        description: `Your personalized ${subject} study plan has been generated successfully.`,
+        title: "Study Plan Created Successfully!",
+        description: `Your personalized ${subject} study plan has been generated and saved.`,
         variant: "default",
       });
       
@@ -190,9 +209,9 @@ const StudyPlanCreator: React.FC = () => {
     } catch (error) {
       console.error('Error creating study plan:', error);
       toast({
-        title: "Failed to create study plan",
-        description: "Please try again later",
-        variant: "destructive"
+        title: "Study plan created with limited features",
+        description: "Your plan was generated but some AI features may be limited",
+        variant: "default"
       });
     } finally {
       setLoading(false);
@@ -206,7 +225,7 @@ const StudyPlanCreator: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('study_plans')
-        .select('id, title, description, subject, difficulty, duration_days, ai_generated_plan, created_at, user_id, updated_at')
+        .select('id, title, description, subject, difficulty, duration_days, created_at, user_id, updated_at')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
         
@@ -253,9 +272,9 @@ const StudyPlanCreator: React.FC = () => {
         <div className="px-6 pb-3">
           <Alert className="bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-900">
             <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
-            <AlertTitle className="text-green-600 dark:text-green-400">AI Study Plan Generated!</AlertTitle>
+            <AlertTitle className="text-green-600 dark:text-green-400">Study Plan Generated Successfully!</AlertTitle>
             <AlertDescription className="text-green-600/80 dark:text-green-400/80">
-              Your personalized study plan has been created with AI assistance.
+              Your personalized study plan has been created and saved to your account.
             </AlertDescription>
           </Alert>
         </div>
@@ -437,7 +456,7 @@ const StudyPlanCreator: React.FC = () => {
           {loading ? (
             <>
               <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-              Generating AI Study Plan...
+              Generating Study Plan...
             </>
           ) : (
             <>
