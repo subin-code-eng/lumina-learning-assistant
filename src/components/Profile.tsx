@@ -4,13 +4,16 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { User, Save } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { User, Save, Upload, Camera } from 'lucide-react';
+import { toast } from '@/components/ui/sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 const Profile: React.FC = () => {
   const { user, profile, updateProfile } = useAuth();
   const [name, setName] = useState(profile?.full_name || '');
   const [isEditing, setIsEditing] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   const handleSave = () => {
     updateProfile({ full_name: name });
@@ -27,6 +30,57 @@ const Profile: React.FC = () => {
       .substring(0, 2);
   };
 
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select a valid image file');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image size must be less than 5MB');
+      return;
+    }
+
+    setIsUploadingImage(true);
+
+    try {
+      // Create unique filename
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+
+      // Upload to Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, file, {
+          upsert: true
+        });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fileName);
+
+      // Update profile with new avatar URL
+      await updateProfile({ avatar_url: publicUrl });
+
+      toast.success('Profile picture updated successfully!');
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      toast.error('Failed to upload image. Please try again.');
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
   return (
     <Card className="w-full">
       <CardHeader>
@@ -35,9 +89,33 @@ const Profile: React.FC = () => {
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="flex flex-col items-center space-y-4">
-          <Avatar className="h-20 w-20 bg-primary text-primary-foreground">
-            <AvatarFallback className="text-xl">{getInitials()}</AvatarFallback>
-          </Avatar>
+          <div className="relative">
+            <Avatar className="h-20 w-20 bg-primary text-primary-foreground">
+              {profile?.avatar_url ? (
+                <AvatarImage src={profile.avatar_url} alt={name || 'User'} />
+              ) : null}
+              <AvatarFallback className="text-xl">{getInitials()}</AvatarFallback>
+            </Avatar>
+            <div className="absolute -bottom-2 -right-2">
+              <label htmlFor="avatar-upload" className="cursor-pointer">
+                <div className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-full p-2 shadow-lg transition-colors">
+                  {isUploadingImage ? (
+                    <Upload className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Camera className="h-4 w-4" />
+                  )}
+                </div>
+                <input
+                  id="avatar-upload"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                  disabled={isUploadingImage}
+                />
+              </label>
+            </div>
+          </div>
           <div className="text-center">
             <h3 className="font-medium text-lg">{name}</h3>
             <p className="text-sm text-muted-foreground">{user?.email}</p>
