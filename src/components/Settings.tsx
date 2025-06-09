@@ -14,6 +14,7 @@ const Settings: React.FC = () => {
   const [notifications, setNotifications] = useState(true);
   const [soundEffects, setSoundEffects] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // Check for system preference or saved preference on mount
   useEffect(() => {
@@ -22,11 +23,11 @@ const Settings: React.FC = () => {
     if (savedSettings) {
       try {
         const settings = JSON.parse(savedSettings);
-        setDarkMode(settings.darkMode);
+        setDarkMode(settings.darkMode || false);
         setNotifications(settings.notifications !== undefined ? settings.notifications : true);
         setSoundEffects(settings.soundEffects !== undefined ? settings.soundEffects : true);
         
-        // Apply dark mode to document if needed
+        // Apply dark mode based on saved preference only
         if (settings.darkMode) {
           document.documentElement.classList.add('dark');
         } else {
@@ -40,17 +41,17 @@ const Settings: React.FC = () => {
     } else {
       setDefaults();
     }
+    setIsInitialized(true);
   }, []);
 
   const setDefaults = () => {
-    // Check for system preference if no saved setting
+    // Don't automatically apply system preference, just set it as default
     const prefersDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    setDarkMode(prefersDarkMode);
+    setDarkMode(false); // Always default to light mode
     setNotifications(true);
     setSoundEffects(true);
-    if (prefersDarkMode) {
-      document.documentElement.classList.add('dark');
-    }
+    // Always start in light mode
+    document.documentElement.classList.remove('dark');
   };
 
   const handleSaveSettings = () => {
@@ -92,16 +93,26 @@ const Settings: React.FC = () => {
 
   const toggleDarkMode = (checked: boolean) => {
     setDarkMode(checked);
-    // Apply the change immediately for better UX
-    if (checked) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-    
-    // Play a toggle sound if sound effects are enabled
-    if (soundEffects) {
-      playToggleSound();
+    // Only apply the change immediately after initialization
+    if (isInitialized) {
+      if (checked) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+      
+      // Auto-save the setting
+      const settings = {
+        darkMode: checked,
+        notifications,
+        soundEffects
+      };
+      localStorage.setItem('appSettings', JSON.stringify(settings));
+      
+      // Play a toggle sound if sound effects are enabled
+      if (soundEffects) {
+        playToggleSound();
+      }
     }
   };
 
@@ -147,7 +158,7 @@ const Settings: React.FC = () => {
   const playSuccessSound = () => {
     try {
       const audio = new Audio();
-      audio.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA/+M4wAAAAAAAAAAAAEluZm8AAAAPAAAAAwAAADIAEBAAAAwADB8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/+MYxAAAAANIAAAAAExBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQAA';
+      audio.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA/+M4wAAAAAAAAAAAAEluZm8AAAAPAAAAAwAAADIAEBAAAAwADB8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/+MYxAAAAANIAAAAAExBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQAA';
       audio.volume = 0.3;
       audio.play();
     } catch (error) {

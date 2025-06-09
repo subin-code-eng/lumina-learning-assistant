@@ -10,9 +10,9 @@ export const generateAvatarUrl = (name: string, size: number = 100): string => {
 
   // Generate a consistent color based on the name
   const colors = [
-    '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57',
-    '#FF9FF3', '#54A0FF', '#5F27CD', '#00D2D3', '#FF9F43',
-    '#10AC84', '#EE5A6F', '#C44569', '#F8B500', '#6C5CE7'
+    'FF6B6B', '4ECDC4', '45B7D1', '96CEB4', 'FECA57',
+    'FF9FF3', '54A0FF', '5F27CD', '00D2D3', 'FF9F43',
+    '10AC84', 'EE5A6F', 'C44569', 'F8B500', '6C5CE7'
   ];
   
   // Create a simple hash from the name to pick a consistent color
@@ -23,11 +23,22 @@ export const generateAvatarUrl = (name: string, size: number = 100): string => {
   const colorIndex = Math.abs(hash) % colors.length;
   const backgroundColor = colors[colorIndex];
 
-  // Use DiceBear API for more professional avatars
+  // Use DiceBear API for more professional avatars with proper encoding
   const style = 'initials';
   const seed = encodeURIComponent(cleanName);
   
-  return `https://api.dicebear.com/7.x/${style}/svg?seed=${seed}&backgroundColor=${backgroundColor.replace('#', '')}&size=${size}&radius=50&fontSize=36&fontWeight=600&textColor=ffffff`;
+  // Construct URL with proper parameter encoding
+  const params = new URLSearchParams({
+    seed: cleanName,
+    backgroundColor: backgroundColor,
+    size: size.toString(),
+    radius: '50',
+    fontSize: '36',
+    fontWeight: '600',
+    textColor: 'ffffff'
+  });
+  
+  return `https://api.dicebear.com/7.x/${style}/svg?${params.toString()}`;
 };
 
 export const getAvatarUrl = (profile: any, size: number = 100): string => {
