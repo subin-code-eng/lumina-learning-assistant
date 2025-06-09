@@ -7,71 +7,33 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Create a pool of fallback responses in case the AI service is unavailable
-const fallbackResponses = [
-  "I'm your AI study companion. While I'm having trouble connecting to my knowledge base right now, I can still help with general study questions. What subject are you focusing on today?",
-  "My advanced reasoning capabilities are temporarily limited. In the meantime, would you like me to share some effective study techniques?",
-  "I'm currently experiencing connection issues. While we wait, remember that creating your own explanations of topics helps solidify your understanding. What topic are you studying?",
-  "I need a moment to reconnect to my knowledge services. Meanwhile, remember that spacing out your practice over time (spaced repetition) is proven to improve retention!",
-  "My connection to the knowledge database is intermittent. While we troubleshoot, consider this: teaching concepts to others is one of the most effective ways to solidify your understanding."
-];
-
-// Study tips organized by subject that can be served even when the API is down
-const subjectTips = {
-  "mathematics": [
-    "When learning math formulas, try to understand the underlying concepts rather than memorizing. This makes application much easier.",
-    "Practice active recall with math problems by covering the solutions and attempting to solve from memory before checking.",
-    "Try explaining mathematical concepts using simple, everyday examples to improve understanding.",
-  ],
-  "science": [
-    "Create concept maps connecting scientific principles to visualize relationships between ideas.",
-    "For chemistry formulas and physics equations, focus on understanding units and dimensional consistency.",
-    "When studying biology, use analogies to relate complex cellular processes to familiar scenarios.",
-  ],
-  "language": [
-    "Immerse yourself in the language through media like movies, podcasts, or books.",
-    "Practice writing short paragraphs daily to improve grammar and vocabulary retention.",
-    "Use spaced repetition apps specifically designed for language learning vocabulary.",
-  ],
-  "history": [
-    "Create timelines to visualize how events connect and influence each other.",
-    "Focus on understanding causation rather than memorizing dates and names.",
-    "Compare historical events to contemporary situations to deepen understanding of patterns.",
-  ],
-  "general": [
-    "The Pomodoro Technique (25 minutes of focused work, 5 minute break) can improve concentration.",
-    "Teaching concepts to others, even imaginary students, helps identify gaps in your understanding.",
-    "Taking handwritten notes engages different cognitive processes than typing and may improve retention.",
-    "Regular sleep is crucial for memory consolidation - cramming all night is counterproductive.",
-    "Interleaving different subjects in one study session can improve long-term retention compared to blocking.",
-  ]
+// Enhanced fallback responses with better educational content
+const fallbackResponses = {
+  mathematics: "**Mathematics Help:**\n\nFor math problems, I recommend:\n- Breaking complex problems into smaller steps\n- Understanding the underlying concepts rather than just memorizing formulas\n- Practice with similar problems to build confidence\n- Use visual aids like graphs or diagrams when possible\n\nWhat specific math topic would you like help with?",
+  
+  science: "**Science Learning:**\n\nScience concepts are best understood through:\n- Real-world examples and applications\n- Connecting new information to what you already know\n- Creating concept maps to visualize relationships\n- Hands-on experiments or demonstrations when possible\n\nWhich science topic interests you most?",
+  
+  history: "**History Study Tips:**\n\nWhen studying history, focus on:\n- **Understanding causation** rather than just memorizing dates and names\n- Creating timelines to see how events connect\n- Comparing historical events to contemporary situations\n- Understanding the broader context and consequences\n\nWhat historical period or event would you like to explore?",
+  
+  language: "**Language Learning:**\n\nEffective language study involves:\n- Consistent daily practice\n- Immersion through reading, listening, and speaking\n- Focus on practical communication over perfect grammar\n- Building vocabulary through context and usage\n\nWhat language skills would you like to improve?",
+  
+  general: "**Study Tips:**\n\nHere are some proven learning strategies:\n- **Active recall**: Test yourself frequently\n- **Spaced repetition**: Review material at increasing intervals\n- **Elaborative questioning**: Ask yourself 'why' and 'how'\n- **Teaching others**: Explain concepts to solidify understanding\n\nWhat subject or topic would you like to focus on today?"
 };
 
-function getRandomResponse(array) {
-  return array[Math.floor(Math.random() * array.length)];
-}
-
 function getFallbackResponse(query = "") {
-  // Try to match the query to a subject
   const queryLower = query.toLowerCase();
-  let subjectMatch = "general";
   
   if (queryLower.includes("math") || queryLower.includes("equation") || queryLower.includes("calculus")) {
-    subjectMatch = "mathematics";
+    return fallbackResponses.mathematics;
   } else if (queryLower.includes("science") || queryLower.includes("biology") || queryLower.includes("chemistry") || queryLower.includes("physics")) {
-    subjectMatch = "science";
+    return fallbackResponses.science;
   } else if (queryLower.includes("language") || queryLower.includes("grammar") || queryLower.includes("vocabulary")) {
-    subjectMatch = "language";
+    return fallbackResponses.language;
   } else if (queryLower.includes("history") || queryLower.includes("century") || queryLower.includes("war")) {
-    subjectMatch = "history";
+    return fallbackResponses.history;
   }
   
-  // Get a random tip for the matched subject
-  const subjectTipArray = subjectTips[subjectMatch] || subjectTips.general;
-  const tip = getRandomResponse(subjectTipArray);
-  
-  // Combine with a general fallback message
-  return `${getRandomResponse(fallbackResponses)} ${tip}`;
+  return fallbackResponses.general;
 }
 
 serve(async (req) => {
@@ -83,13 +45,15 @@ serve(async (req) => {
   try {
     const openAiApiKey = Deno.env.get("OPENAI_API_KEY");
     
+    // Check if OpenAI API key is available
     if (!openAiApiKey) {
-      console.error("Missing OpenAI API key");
+      console.log("OpenAI API key not found, using enhanced offline mode");
+      const { query } = await req.json();
+      
       return new Response(
         JSON.stringify({ 
-          response: "I'm currently unable to connect to my knowledge base due to a configuration issue. Please try again shortly.",
-          error: true,
-          errorType: "config" 
+          response: `**Enhanced Learning Mode Active** 🎓\n\n${getFallbackResponse(query)}\n\n*To enable full AI capabilities, please add your OpenAI API key to the Supabase Edge Function Secrets.*`,
+          offline: true
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
       );
@@ -106,137 +70,67 @@ serve(async (req) => {
       );
     }
 
-    // Initialize OpenAI client with the API key
+    // Initialize OpenAI client
     const openai = new OpenAI({
       apiKey: openAiApiKey,
     });
 
-    // Create a system prompt based on user preferences and the new AI tutor instructions
+    // Create system prompt
     let systemPrompt = `You are an AI tutor designed to help students learn any topic they ask about. 
-    Your name is Study Buddy. Be friendly, encouraging, and concise.
-    
-    You can answer questions clearly, guide users through complex topics step-by-step, and suggest helpful 
-    resources such as videos, articles, or exercises. Always verify if the user wants external links 
-    or summaries before suggesting them.
+    Your name is Study Buddy. Be friendly, encouraging, and educational.
     
     Adapt your responses based on these student preferences:
     - Learning style: ${userPreferences?.learningStyle || 'visual'}
     - Difficulty level: ${userPreferences?.difficulty || 'intermediate'}
     - Response detail: ${userPreferences?.responseLength || 'detailed'}
     
-    Behaviors:
-    - Respond in a friendly, encouraging, and concise tone.
-    - Provide explanations tailored to the user's skill level.
-    - Ask follow-up questions to keep the tutoring session going.
-    - If explaining complex concepts, break them down into manageable parts.
-    
-    If you don't know an answer, be honest and suggest resources or alternative approaches.
-    Encourage critical thinking rather than just providing answers.`;
-
-    // Add subject focus if available
-    if (userPreferences?.subjects && userPreferences.subjects.length > 0) {
-      systemPrompt += `\nYou specialize in these subjects: ${userPreferences.subjects.join(', ')}.`;
-    }
+    Always provide clear explanations and encourage learning.`;
 
     console.log("Calling OpenAI API with query:", query);
     
     try {
-      // Create a controller to handle timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const chatCompletion = await openai.chat.completions.create({
+        model: "gpt-3.5-turbo",
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...(conversationContext?.map(msg => ({ role: "user", content: msg })) || []),
+          { role: "user", content: query }
+        ],
+        max_tokens: 800,
+        temperature: 0.7,
+      });
 
-      // Add exponential backoff for rate limiting
-      let retryCount = 0;
-      const maxRetries = 3;
-      
-      while (retryCount <= maxRetries) {
-        try {
-          const chatCompletion = await openai.chat.completions.create({
-            model: "gpt-3.5-turbo",
-            messages: [
-              { role: "system", content: systemPrompt },
-              ...(conversationContext?.map(msg => ({ role: "user", content: msg })) || []),
-              { role: "user", content: query }
-            ],
-            max_tokens: 1000,
-            temperature: 0.7,
-          }, { signal: controller.signal });
+      const aiResponse = chatCompletion.choices[0].message.content;
+      console.log("Received AI response successfully");
 
-          clearTimeout(timeoutId);
-
-          const aiResponse = chatCompletion.choices[0].message.content;
-          console.log("Received AI response successfully");
-
-          return new Response(
-            JSON.stringify({ 
-              response: aiResponse,
-              success: true 
-            }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        } catch (retryError) {
-          // Check if it's a rate limit error
-          if (retryError.status === 429) {
-            retryCount++;
-            
-            if (retryCount <= maxRetries) {
-              // Exponential backoff with jitter
-              const delay = Math.min(Math.pow(2, retryCount) * 1000 + Math.random() * 1000, 10000);
-              console.log(`Rate limited, retrying in ${delay}ms (attempt ${retryCount})`);
-              await new Promise(resolve => setTimeout(resolve, delay));
-              continue;
-            }
-          }
-          
-          // For other errors or if we've exhausted retries, throw to be caught by outer try/catch
-          throw retryError;
-        }
-      }
-
-      // If we've reached here, we've exhausted retries
-      throw new Error("Max retries reached for OpenAI API");
+      return new Response(
+        JSON.stringify({ 
+          response: aiResponse,
+          success: true 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
       
     } catch (openAiError) {
       console.error("OpenAI API error:", openAiError);
       
-      // Handle different types of errors
-      let errorMessage = "I'm having trouble processing your request right now.";
-      let errorType = "api";
-      let fallbackResponse = getFallbackResponse(query);
-      
-      if (openAiError.name === "AbortError" || openAiError.code === "ETIMEDOUT" || openAiError.message?.includes("timeout")) {
-        errorType = "timeout";
-        errorMessage = "The request took too long to process. Please try again with a simpler question.";
-      } else if (openAiError.status === 429) {
-        errorType = "rate_limit";
-        errorMessage = "I've reached my capacity at the moment. Please try again in a few minutes.";
-      } else if (openAiError.status >= 500) {
-        errorType = "server";
-        errorMessage = "My knowledge service is experiencing issues. Please try again shortly.";
-      } else if (openAiError.message?.includes("insufficient_quota") || openAiError.code === "insufficient_quota") {
-        errorType = "quota";
-        errorMessage = "I've reached my usage limits for now. Please try again later.";
-      }
-      
+      // Return enhanced fallback response
       return new Response(
         JSON.stringify({ 
-          response: `${errorMessage} ${fallbackResponse}`,
-          error: true,
-          errorType: errorType,
-          fallback: true
+          response: `**Connection Issue - Enhanced Mode** 🔄\n\n${getFallbackResponse(query)}\n\n*The AI service is temporarily unavailable. You can continue learning with these curated study tips!*`,
+          offline: true,
+          error: true
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
       );
     }
   } catch (error) {
     console.error("Error processing request:", error);
-    const genericFallback = getFallbackResponse();
     return new Response(
       JSON.stringify({ 
-        response: `I apologize, but I'm experiencing a technical issue. ${genericFallback}`,
-        error: true,
-        errorType: "server",
-        fallback: true
+        response: `**Study Mode** 📚\n\n${getFallbackResponse()}\n\n*I'm here to help with your studies using proven learning techniques!*`,
+        offline: true,
+        error: true
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     );

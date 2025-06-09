@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -48,7 +47,7 @@ const AITutor: React.FC = () => {
   const [isThinking, setIsThinking] = useState(false);
   const [showTutorPreferences, setShowTutorPreferences] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
+  const [isOfflineMode, setIsOfflineMode] = useState(false);
   
   const [userPreferences, setUserPreferences] = useState<UserPreference>({
     learningStyle: 'visual',
@@ -72,7 +71,7 @@ const AITutor: React.FC = () => {
     }
   }, [isTyping, showLongForm]);
 
-  const callAIEndpoint = async (userQuery: string): Promise<{response: string, error?: boolean}> => {
+  const callAIEndpoint = async (userQuery: string): Promise<{response: string, error?: boolean, offline?: boolean}> => {
     try {
       setApiError(null);
       
@@ -93,18 +92,22 @@ const AITutor: React.FC = () => {
         throw new Error('No response from AI service');
       }
       
-      // Reset retry count on success
-      setRetryCount(0);
+      // Check if response indicates offline mode
+      if (data.offline) {
+        setIsOfflineMode(true);
+        return { response: data.response, offline: true };
+      }
+      
+      setIsOfflineMode(false);
       return { response: data.response };
     } catch (error) {
       console.error('AI call failed:', error);
-      
-      // Increment retry count
-      setRetryCount(prev => prev + 1);
+      setIsOfflineMode(true);
       
       return { 
         response: getFallbackResponse(userQuery),
-        error: true
+        error: true,
+        offline: true
       };
     }
   };
@@ -165,15 +168,15 @@ const AITutor: React.FC = () => {
         
         simulateTypingResponse(aiResponse, !!aiResponseData.error);
         
-        if (aiResponseData.error) {
-          setApiError("Enhanced offline mode - providing curated study guidance");
+        if (aiResponseData.offline) {
+          setApiError("Enhanced Study Mode - Using curated learning guidance");
         }
       }, 800);
     } catch (error) {
       console.error("Error in handleSend:", error);
       setIsTyping(false);
       setIsThinking(false);
-      setApiError("Connection issue - using enhanced offline mode");
+      setApiError("Enhanced Study Mode - Using curated learning guidance");
       
       const fallbackResponse = getFallbackResponse(messageText);
       simulateTypingResponse(fallbackResponse, true);
@@ -312,7 +315,7 @@ const AITutor: React.FC = () => {
               <CardTitle className="text-lg">Advanced AI Tutor</CardTitle>
               <CardDescription className="text-xs flex items-center gap-1">
                 <Lightbulb className="h-3 w-3" /> 
-                Your personalized learning companion
+                {isOfflineMode ? "Enhanced Study Mode" : "Your personalized learning companion"}
               </CardDescription>
             </div>
           </div>
@@ -399,19 +402,15 @@ const AITutor: React.FC = () => {
           <Alert className="mt-2 bg-blue-50 border-blue-200">
             <AlertCircle className="h-4 w-4 text-blue-600" />
             <AlertTitle className="text-blue-700">Enhanced Learning Mode</AlertTitle>
-            <AlertDescription className="text-blue-600 flex items-center justify-between">
-              <span>Using advanced offline tutoring capabilities for optimal learning experience.</span>
-              {retryCount > 0 && (
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={retryLastMessage}
-                  className="text-blue-600 hover:text-blue-700"
-                >
-                  <RefreshCw className="h-3 w-3 mr-1" />
-                  Retry ({retryCount})
-                </Button>
-              )}
+            <AlertDescription className="text-blue-600">
+              <div className="space-y-2">
+                <p>Using curated study guidance and proven learning techniques.</p>
+                {isOfflineMode && (
+                  <p className="text-xs">
+                    💡 <strong>Tip:</strong> To enable full AI capabilities, add an OpenAI API key to your Supabase Edge Function Secrets.
+                  </p>
+                )}
+              </div>
             </AlertDescription>
           </Alert>
         )}

@@ -23,22 +23,19 @@ export const generateAvatarUrl = (name: string, size: number = 100): string => {
   const colorIndex = Math.abs(hash) % colors.length;
   const backgroundColor = colors[colorIndex];
 
-  // Use DiceBear API for more professional avatars with proper encoding
-  const style = 'initials';
-  const seed = encodeURIComponent(cleanName);
-  
-  // Construct URL with proper parameter encoding
+  // Use DiceBear API v9 with proper parameters
+  const baseUrl = 'https://api.dicebear.com/9.x/initials/svg';
   const params = new URLSearchParams({
     seed: cleanName,
     backgroundColor: backgroundColor,
     size: size.toString(),
     radius: '50',
-    fontSize: '36',
+    fontSize: '40',
     fontWeight: '600',
     textColor: 'ffffff'
   });
   
-  return `https://api.dicebear.com/7.x/${style}/svg?${params.toString()}`;
+  return `${baseUrl}?${params.toString()}`;
 };
 
 export const getAvatarUrl = (profile: any, size: number = 100): string => {
