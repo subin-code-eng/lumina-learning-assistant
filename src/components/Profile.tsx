@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { User, Save, Upload, Camera } from 'lucide-react';
 import { toast } from '@/components/ui/sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { getAvatarUrl } from '@/utils/avatarGenerator';
 
 const Profile: React.FC = () => {
   const { user, profile, updateProfile } = useAuth();
@@ -81,6 +82,9 @@ const Profile: React.FC = () => {
     }
   };
 
+  // Get the avatar URL (either uploaded or auto-generated)
+  const avatarUrl = getAvatarUrl(profile, 80);
+
   return (
     <Card className="w-full">
       <CardHeader>
@@ -91,9 +95,7 @@ const Profile: React.FC = () => {
         <div className="flex flex-col items-center space-y-4">
           <div className="relative">
             <Avatar className="h-20 w-20 bg-primary text-primary-foreground">
-              {profile?.avatar_url ? (
-                <AvatarImage src={profile.avatar_url} alt={name || 'User'} />
-              ) : null}
+              <AvatarImage src={avatarUrl} alt={name || 'User'} />
               <AvatarFallback className="text-xl">{getInitials()}</AvatarFallback>
             </Avatar>
             <div className="absolute -bottom-2 -right-2">

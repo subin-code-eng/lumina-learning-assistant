@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -47,6 +48,7 @@ const AITutor: React.FC = () => {
   const [isThinking, setIsThinking] = useState(false);
   const [showTutorPreferences, setShowTutorPreferences] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   
   const [userPreferences, setUserPreferences] = useState<UserPreference>({
     learningStyle: 'visual',
@@ -84,22 +86,22 @@ const AITutor: React.FC = () => {
       
       if (error) {
         console.error('AI endpoint error:', error);
-        return { 
-          response: getFallbackResponse(userQuery),
-          error: true
-        };
+        throw new Error(error.message || 'API request failed');
       }
       
       if (!data?.response) {
-        return { 
-          response: getFallbackResponse(userQuery),
-          error: true
-        };
+        throw new Error('No response from AI service');
       }
       
+      // Reset retry count on success
+      setRetryCount(0);
       return { response: data.response };
     } catch (error) {
       console.error('AI call failed:', error);
+      
+      // Increment retry count
+      setRetryCount(prev => prev + 1);
+      
       return { 
         response: getFallbackResponse(userQuery),
         error: true
@@ -154,6 +156,7 @@ const AITutor: React.FC = () => {
     });
     
     try {
+      // Add a thinking delay for better UX
       setTimeout(async () => {
         setIsThinking(false);
         
@@ -163,14 +166,14 @@ const AITutor: React.FC = () => {
         simulateTypingResponse(aiResponse, !!aiResponseData.error);
         
         if (aiResponseData.error) {
-          setApiError("Using enhanced offline mode");
+          setApiError("Enhanced offline mode - providing curated study guidance");
         }
       }, 800);
     } catch (error) {
       console.error("Error in handleSend:", error);
       setIsTyping(false);
       setIsThinking(false);
-      setApiError("Connection issue - using offline mode");
+      setApiError("Connection issue - using enhanced offline mode");
       
       const fallbackResponse = getFallbackResponse(messageText);
       simulateTypingResponse(fallbackResponse, true);
@@ -260,6 +263,7 @@ const AITutor: React.FC = () => {
     ]);
     setConversationContext([]);
     setApiError(null);
+    setRetryCount(0);
     toast.success("Conversation cleared", {
       description: "Started a new conversation"
     });
@@ -274,6 +278,17 @@ const AITutor: React.FC = () => {
     toast.success("Preference updated", {
       description: "Your learning preferences have been updated"
     });
+  };
+
+  const retryLastMessage = () => {
+    if (messages.length >= 2) {
+      const lastUserMessage = messages[messages.length - 2];
+      if (lastUserMessage.sender === 'user') {
+        // Remove the last AI response and retry
+        setMessages(prev => prev.slice(0, -1));
+        handleSend(lastUserMessage.text);
+      }
+    }
   };
 
   const suggestedPrompts = [
@@ -384,8 +399,19 @@ const AITutor: React.FC = () => {
           <Alert className="mt-2 bg-blue-50 border-blue-200">
             <AlertCircle className="h-4 w-4 text-blue-600" />
             <AlertTitle className="text-blue-700">Enhanced Learning Mode</AlertTitle>
-            <AlertDescription className="text-blue-600">
-              Using advanced offline tutoring capabilities for optimal learning experience.
+            <AlertDescription className="text-blue-600 flex items-center justify-between">
+              <span>Using advanced offline tutoring capabilities for optimal learning experience.</span>
+              {retryCount > 0 && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={retryLastMessage}
+                  className="text-blue-600 hover:text-blue-700"
+                >
+                  <RefreshCw className="h-3 w-3 mr-1" />
+                  Retry ({retryCount})
+                </Button>
+              )}
             </AlertDescription>
           </Alert>
         )}

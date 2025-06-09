@@ -6,6 +6,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Link } from 'react-router-dom';
+import { getAvatarUrl } from '@/utils/avatarGenerator';
 
 const Header: React.FC = () => {
   const { user, profile, logout } = useAuth();
@@ -20,6 +21,9 @@ const Header: React.FC = () => {
       .toUpperCase()
       .substring(0, 2);
   };
+
+  // Get the avatar URL (either uploaded or auto-generated)
+  const avatarUrl = getAvatarUrl(profile, 32);
 
   return (
     <header className="w-full py-4 px-6 flex items-center justify-between bg-background/80 backdrop-blur-md sticky top-0 z-10 border-b">
@@ -48,9 +52,7 @@ const Header: React.FC = () => {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-full">
               <Avatar className="h-8 w-8 bg-primary text-primary-foreground">
-                {profile?.avatar_url ? (
-                  <AvatarImage src={profile.avatar_url} alt={profile.full_name || 'User'} />
-                ) : null}
+                <AvatarImage src={avatarUrl} alt={profile?.full_name || 'User'} />
                 <AvatarFallback>{getInitials()}</AvatarFallback>
               </Avatar>
             </Button>
