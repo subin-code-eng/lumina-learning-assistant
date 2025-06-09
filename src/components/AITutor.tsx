@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -48,6 +49,7 @@ const AITutor: React.FC = () => {
   const [showTutorPreferences, setShowTutorPreferences] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [isOfflineMode, setIsOfflineMode] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   
   const [userPreferences, setUserPreferences] = useState<UserPreference>({
     learningStyle: 'visual',
