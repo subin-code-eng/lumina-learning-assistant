@@ -1,6 +1,5 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { OpenAI } from "https://deno.land/x/openai@v4.20.1/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -43,16 +42,16 @@ serve(async (req) => {
   }
 
   try {
-    const openAiApiKey = Deno.env.get("OPENAI_API_KEY");
+    const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
     
-    // Check if OpenAI API key is available
-    if (!openAiApiKey) {
-      console.log("OpenAI API key not found, using enhanced offline mode");
+    // Check if Gemini API key is available
+    if (!geminiApiKey) {
+      console.log("Gemini API key not found, using enhanced offline mode");
       const { query } = await req.json();
       
       return new Response(
         JSON.stringify({ 
-          response: `**Enhanced Learning Mode Active** 🎓\n\n${getFallbackResponse(query)}\n\n*To enable full AI capabilities, please add your OpenAI API key to the Supabase Edge Function Secrets.*`,
+          response: `**Enhanced Learning Mode Active** 🎓\n\n${getFallbackResponse(query)}\n\n*To enable full AI capabilities, please add your Gemini API key to the Supabase Edge Function Secrets.*`,
           offline: true
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
@@ -70,11 +69,6 @@ serve(async (req) => {
       );
     }
 
-    // Initialize OpenAI client
-    const openai = new OpenAI({
-      apiKey: openAiApiKey,
-    });
-
     // Create system prompt
     let systemPrompt = `You are an AI tutor designed to help students learn any topic they ask about. 
     Your name is Study Buddy. Be friendly, encouraging, and educational.
@@ -86,22 +80,40 @@ serve(async (req) => {
     
     Always provide clear explanations and encourage learning.`;
 
-    console.log("Calling OpenAI API with query:", query);
+    console.log("Calling Gemini API with query:", query);
     
     try {
-      const chatCompletion = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...(conversationContext?.map(msg => ({ role: "user", content: msg })) || []),
-          { role: "user", content: query }
-        ],
-        max_tokens: 800,
-        temperature: 0.7,
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: `${systemPrompt}\n\nUser question: ${query}`
+            }]
+          }],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 800,
+          }
+        }),
       });
 
-      const aiResponse = chatCompletion.choices[0].message.content;
-      console.log("Received AI response successfully");
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(`Gemini API error: ${data.error?.message || 'Unknown error'}`);
+      }
+      
+      const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      
+      if (!aiResponse) {
+        throw new Error('No response from Gemini API');
+      }
+      
+      console.log("Received Gemini response successfully");
 
       return new Response(
         JSON.stringify({ 
@@ -111,8 +123,8 @@ serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
       
-    } catch (openAiError) {
-      console.error("OpenAI API error:", openAiError);
+    } catch (geminiError) {
+      console.error("Gemini API error:", geminiError);
       
       // Return enhanced fallback response
       return new Response(

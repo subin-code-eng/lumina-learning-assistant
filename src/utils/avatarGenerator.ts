@@ -1,3 +1,4 @@
+
 export const generateAvatarUrl = (name: string, size: number = 100): string => {
   // Clean the name and get initials
   const cleanName = name?.trim() || 'User';
@@ -23,16 +24,15 @@ export const generateAvatarUrl = (name: string, size: number = 100): string => {
   const colorIndex = Math.abs(hash) % colors.length;
   const backgroundColor = colors[colorIndex];
 
-  // Use DiceBear API v9 with proper parameters
-  const baseUrl = 'https://api.dicebear.com/9.x/initials/svg';
+  // Use DiceBear API v9 with avataaars style for cartoon avatars
+  const baseUrl = 'https://api.dicebear.com/9.x/avataaars/svg';
   const params = new URLSearchParams({
     seed: cleanName,
     backgroundColor: backgroundColor,
     size: size.toString(),
-    radius: '50',
-    fontSize: '40',
-    fontWeight: '600',
-    textColor: 'ffffff'
+    radius: '0',
+    backgroundType: 'gradientLinear',
+    backgroundRotation: '45'
   });
   
   return `${baseUrl}?${params.toString()}`;

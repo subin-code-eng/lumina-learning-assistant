@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -49,7 +48,6 @@ const AITutor: React.FC = () => {
   const [showTutorPreferences, setShowTutorPreferences] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [isOfflineMode, setIsOfflineMode] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
   
   const [userPreferences, setUserPreferences] = useState<UserPreference>({
     learningStyle: 'visual',
@@ -268,7 +266,6 @@ const AITutor: React.FC = () => {
     ]);
     setConversationContext([]);
     setApiError(null);
-    setRetryCount(0);
     toast.success("Conversation cleared", {
       description: "Started a new conversation"
     });
@@ -283,17 +280,6 @@ const AITutor: React.FC = () => {
     toast.success("Preference updated", {
       description: "Your learning preferences have been updated"
     });
-  };
-
-  const retryLastMessage = () => {
-    if (messages.length >= 2) {
-      const lastUserMessage = messages[messages.length - 2];
-      if (lastUserMessage.sender === 'user') {
-        // Remove the last AI response and retry
-        setMessages(prev => prev.slice(0, -1));
-        handleSend(lastUserMessage.text);
-      }
-    }
   };
 
   const suggestedPrompts = [
@@ -409,7 +395,7 @@ const AITutor: React.FC = () => {
                 <p>Using curated study guidance and proven learning techniques.</p>
                 {isOfflineMode && (
                   <p className="text-xs">
-                    💡 <strong>Tip:</strong> To enable full AI capabilities, add an OpenAI API key to your Supabase Edge Function Secrets.
+                    💡 <strong>Tip:</strong> To enable full AI capabilities, add a Gemini API key to your Supabase Edge Function Secrets.
                   </p>
                 )}
               </div>

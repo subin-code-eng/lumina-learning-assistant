@@ -26,6 +26,11 @@ const AvatarImage = React.forwardRef<
   <AvatarPrimitive.Image
     ref={ref}
     className={cn("aspect-square h-full w-full object-cover", className)}
+    onError={(e) => {
+      console.log('Avatar image failed to load:', props.src);
+      // Force fallback by setting src to empty
+      e.currentTarget.src = '';
+    }}
     {...props}
   />
 ))
@@ -38,7 +43,7 @@ const AvatarFallback = React.forwardRef<
   <AvatarPrimitive.Fallback
     ref={ref}
     className={cn(
-      "flex h-full w-full items-center justify-center rounded-full bg-muted",
+      "flex h-full w-full items-center justify-center rounded-full bg-muted text-sm font-medium",
       className
     )}
     {...props}
