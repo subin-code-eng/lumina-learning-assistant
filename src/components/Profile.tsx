@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,16 +18,6 @@ const Profile: React.FC = () => {
   const handleSave = () => {
     updateProfile({ full_name: name });
     setIsEditing(false);
-  };
-
-  const getInitials = () => {
-    if (!name) return 'U';
-    return name
-      .split(' ')
-      .map(part => part[0])
-      .join('')
-      .toUpperCase()
-      .substring(0, 2);
   };
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -82,8 +71,9 @@ const Profile: React.FC = () => {
     }
   };
 
-  // Get the avatar URL (either uploaded or auto-generated)
+  // Get the avatar URL (either uploaded or auto-generated study-themed)
   const avatarUrl = getAvatarUrl(profile, 80);
+  const userName = name || 'Study Buddy';
 
   return (
     <Card className="w-full">
@@ -94,9 +84,9 @@ const Profile: React.FC = () => {
       <CardContent className="space-y-6">
         <div className="flex flex-col items-center space-y-4">
           <div className="relative">
-            <Avatar className="h-20 w-20 bg-primary text-primary-foreground">
-              <AvatarImage src={avatarUrl} alt={name || 'User'} />
-              <AvatarFallback className="text-xl">{getInitials()}</AvatarFallback>
+            <Avatar className="h-20 w-20">
+              <AvatarImage src={avatarUrl} alt={userName} />
+              <AvatarFallback name={userName} className="text-xl" />
             </Avatar>
             <div className="absolute -bottom-2 -right-2">
               <label htmlFor="avatar-upload" className="cursor-pointer">
@@ -119,7 +109,7 @@ const Profile: React.FC = () => {
             </div>
           </div>
           <div className="text-center">
-            <h3 className="font-medium text-lg">{name}</h3>
+            <h3 className="font-medium text-lg">{userName}</h3>
             <p className="text-sm text-muted-foreground">{user?.email}</p>
             {user?.email_confirmed_at && (
               <span className="inline-flex items-center bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full mt-2">

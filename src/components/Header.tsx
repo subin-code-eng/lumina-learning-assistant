@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Bell, Calendar, LogOut, Settings, User } from 'lucide-react';
 import { Button } from "@/components/ui/button";
@@ -11,19 +10,9 @@ import { getAvatarUrl } from '@/utils/avatarGenerator';
 const Header: React.FC = () => {
   const { user, profile, logout } = useAuth();
   
-  // Get user initials for avatar
-  const getInitials = () => {
-    if (!profile?.full_name) return 'U';
-    return profile.full_name
-      .split(' ')
-      .map(part => part[0])
-      .join('')
-      .toUpperCase()
-      .substring(0, 2);
-  };
-
-  // Get the avatar URL (either uploaded or auto-generated)
+  // Get the avatar URL (either uploaded or auto-generated study-themed)
   const avatarUrl = getAvatarUrl(profile, 32);
+  const userName = profile?.full_name || 'Study Buddy';
 
   return (
     <header className="w-full py-4 px-6 flex items-center justify-between bg-background/80 backdrop-blur-md sticky top-0 z-10 border-b">
@@ -51,9 +40,9 @@ const Header: React.FC = () => {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-full">
-              <Avatar className="h-8 w-8 bg-primary text-primary-foreground">
-                <AvatarImage src={avatarUrl} alt={profile?.full_name || 'User'} />
-                <AvatarFallback>{getInitials()}</AvatarFallback>
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={avatarUrl} alt={userName} />
+                <AvatarFallback name={userName} />
               </Avatar>
             </Button>
           </DropdownMenuTrigger>
@@ -61,7 +50,7 @@ const Header: React.FC = () => {
             <DropdownMenuLabel>My Account</DropdownMenuLabel>
             {user && (
               <div className="px-2 py-1.5">
-                <p className="text-sm font-medium">{profile?.full_name}</p>
+                <p className="text-sm font-medium">{userName}</p>
                 <p className="text-xs text-muted-foreground">{user.email}</p>
               </div>
             )}
