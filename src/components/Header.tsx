@@ -1,40 +1,31 @@
 
-
 import React from 'react';
 import { Bell, Calendar, LogOut, Settings, User } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Link, useSearchParams, useNavigate } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { getAvatarUrl } from '@/utils/avatarGenerator';
 
 const Header: React.FC = () => {
   const { user, profile, logout } = useAuth();
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const currentTab = searchParams.get('tab') || 'dashboard';
   
   // Get the avatar URL (either uploaded or auto-generated study-themed)
   const avatarUrl = getAvatarUrl(profile, 32);
   const userName = profile?.full_name || 'Study Buddy';
 
-  // Helper function to handle tab navigation
-  const handleTabNavigation = (tab: string) => {
-    // Completely prevent any action if already on the tab
-    if (currentTab === tab) {
-      console.log(`Already on ${tab} tab, skipping navigation`);
-      return false; // Return false to prevent any further processing
-    }
-    
-    console.log(`Navigating from ${currentTab} to ${tab}`);
+  // Simplified navigation handler
+  const navigateToTab = (tab: string) => {
+    if (currentTab === tab) return; // Don't navigate if already on tab
     
     if (tab === 'dashboard') {
-      navigate('/', { replace: true });
+      setSearchParams({});
     } else {
-      navigate(`/?tab=${tab}`, { replace: true });
+      setSearchParams({ tab });
     }
-    return true;
   };
 
   return (
@@ -79,32 +70,18 @@ const Header: React.FC = () => {
             )}
             <DropdownMenuSeparator />
             <DropdownMenuItem 
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (currentTab !== 'profile') {
-                  handleTabNavigation('profile');
-                }
-              }}
-              className={currentTab === 'profile' ? 'bg-accent opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+              onClick={() => navigateToTab('profile')}
+              className={currentTab === 'profile' ? 'bg-accent' : ''}
             >
               <User className="mr-2 h-4 w-4" />
               <span>Profile</span>
-              {currentTab === 'profile' && <span className="ml-auto text-xs text-muted-foreground">Current</span>}
             </DropdownMenuItem>
             <DropdownMenuItem 
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (currentTab !== 'settings') {
-                  handleTabNavigation('settings');
-                }
-              }}
-              className={currentTab === 'settings' ? 'bg-accent opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+              onClick={() => navigateToTab('settings')}
+              className={currentTab === 'settings' ? 'bg-accent' : ''}
             >
               <Settings className="mr-2 h-4 w-4" />
               <span>Settings</span>
-              {currentTab === 'settings' && <span className="ml-auto text-xs text-muted-foreground">Current</span>}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => logout()}>
@@ -119,4 +96,3 @@ const Header: React.FC = () => {
 };
 
 export default Header;
-

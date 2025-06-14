@@ -20,29 +20,8 @@ import { useAuth } from '@/contexts/AuthContext';
 
 const Index = () => {
   const { user, profile } = useAuth();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const tabParam = searchParams.get('tab');
-  const [activeTab, setActiveTab] = useState(tabParam || "dashboard");
-
-  // Update the URL when tab changes
-  useEffect(() => {
-    if (tabParam !== activeTab) {
-      if (activeTab === "dashboard") {
-        // Remove tab parameter for the default tab
-        searchParams.delete('tab');
-        setSearchParams(searchParams);
-      } else {
-        setSearchParams({ tab: activeTab });
-      }
-    }
-  }, [activeTab, tabParam, searchParams, setSearchParams]);
-
-  // Set the active tab from URL parameter if present
-  useEffect(() => {
-    if (tabParam && ["dashboard", "study", "progress", "ai", "quiz", "profile", "settings"].includes(tabParam)) {
-      setActiveTab(tabParam);
-    }
-  }, [tabParam]);
+  const [searchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || "dashboard";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted/50">
@@ -59,10 +38,7 @@ const Index = () => {
         
         {/* Main Tabs Navigation */}
         <div className="mb-8">
-          <Tabs 
-            value={activeTab} 
-            onValueChange={setActiveTab}
-          >
+          <Tabs value={activeTab}>
             <TabsList className="grid w-full grid-cols-3 md:grid-cols-7 lg:w-auto lg:inline-grid">
               <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
               <TabsTrigger value="study">Study Planner</TabsTrigger>
