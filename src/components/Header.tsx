@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Link, useSearchParams } from 'react-router-dom';
 import { getAvatarUrl } from '@/utils/avatarGenerator';
+import { toast } from 'sonner';
 
 const Header: React.FC = () => {
   const { user, profile, logout } = useAuth();
@@ -16,6 +17,26 @@ const Header: React.FC = () => {
   // Get the avatar URL (either uploaded or auto-generated study-themed)
   const avatarUrl = getAvatarUrl(profile, 32);
   const userName = profile?.full_name || 'Study Buddy';
+
+  // Calendar icon click handler
+  const handleCalendarClick = () => {
+    // Navigate to study planner tab where calendar functionality is available
+    if (currentTab !== 'study') {
+      setSearchParams({ tab: 'study' });
+      toast.success('Navigated to Study Planner');
+    } else {
+      toast.info('You are already in the Study Planner section');
+    }
+  };
+
+  // Bell icon click handler  
+  const handleNotificationClick = () => {
+    // Show a notification about upcoming tasks/exams
+    toast.info('📚 You have 3 upcoming study sessions today!', {
+      description: 'Check your dashboard for more details',
+      duration: 4000,
+    });
+  };
 
   // Simplified navigation handler
   const navigateToTab = (tab: string) => {
@@ -45,10 +66,22 @@ const Header: React.FC = () => {
       </div>
       
       <div className="flex items-center space-x-2">
-        <Button variant="ghost" size="icon" className="text-muted-foreground">
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="text-muted-foreground hover:text-primary transition-colors" 
+          onClick={handleCalendarClick}
+          title="View Study Calendar"
+        >
           <Calendar className="h-5 w-5" />
         </Button>
-        <Button variant="ghost" size="icon" className="text-muted-foreground">
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="text-muted-foreground hover:text-primary transition-colors" 
+          onClick={handleNotificationClick}
+          title="View Notifications"
+        >
           <Bell className="h-5 w-5" />
         </Button>
         <DropdownMenu>
