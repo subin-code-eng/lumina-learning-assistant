@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { Bell, Calendar, LogOut, Settings, User } from 'lucide-react';
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,7 @@ const Header: React.FC = () => {
     // Completely prevent any action if already on the tab
     if (currentTab === tab) {
       console.log(`Already on ${tab} tab, skipping navigation`);
-      return;
+      return false; // Return false to prevent any further processing
     }
     
     console.log(`Navigating from ${currentTab} to ${tab}`);
@@ -33,6 +34,7 @@ const Header: React.FC = () => {
     } else {
       navigate(`/?tab=${tab}`, { replace: true });
     }
+    return true;
   };
 
   return (
@@ -80,25 +82,29 @@ const Header: React.FC = () => {
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                handleTabNavigation('profile');
+                if (currentTab !== 'profile') {
+                  handleTabNavigation('profile');
+                }
               }}
-              className={currentTab === 'profile' ? 'bg-accent' : ''}
-              disabled={currentTab === 'profile'}
+              className={currentTab === 'profile' ? 'bg-accent opacity-50 cursor-not-allowed' : 'cursor-pointer'}
             >
               <User className="mr-2 h-4 w-4" />
               <span>Profile</span>
+              {currentTab === 'profile' && <span className="ml-auto text-xs text-muted-foreground">Current</span>}
             </DropdownMenuItem>
             <DropdownMenuItem 
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                handleTabNavigation('settings');
+                if (currentTab !== 'settings') {
+                  handleTabNavigation('settings');
+                }
               }}
-              className={currentTab === 'settings' ? 'bg-accent' : ''}
-              disabled={currentTab === 'settings'}
+              className={currentTab === 'settings' ? 'bg-accent opacity-50 cursor-not-allowed' : 'cursor-pointer'}
             >
               <Settings className="mr-2 h-4 w-4" />
               <span>Settings</span>
+              {currentTab === 'settings' && <span className="ml-auto text-xs text-muted-foreground">Current</span>}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => logout()}>
@@ -113,3 +119,4 @@ const Header: React.FC = () => {
 };
 
 export default Header;
+
