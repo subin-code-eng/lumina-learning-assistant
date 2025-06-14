@@ -63,13 +63,14 @@ const Index = () => {
             value={activeTab} 
             onValueChange={setActiveTab}
           >
-            <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 lg:w-auto lg:inline-grid">
+            <TabsList className="grid w-full grid-cols-3 md:grid-cols-7 lg:w-auto lg:inline-grid">
               <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
               <TabsTrigger value="study">Study Planner</TabsTrigger>
               <TabsTrigger value="progress">Progress</TabsTrigger>
               <TabsTrigger value="ai">AI Tutor</TabsTrigger>
               <TabsTrigger value="quiz">Quiz</TabsTrigger>
               <TabsTrigger value="profile">Profile</TabsTrigger>
+              <TabsTrigger value="settings">Settings</TabsTrigger>
             </TabsList>
             
             <TabsContent value="dashboard" className="mt-6">
@@ -143,10 +144,14 @@ const Index = () => {
             </TabsContent>
             
             <TabsContent value="profile" className="mt-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="max-w-2xl mx-auto">
                 {/* User Profile */}
                 <Profile />
-                
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="settings" className="mt-6">
+              <div className="max-w-2xl mx-auto">
                 {/* Settings */}
                 <Settings />
               </div>
