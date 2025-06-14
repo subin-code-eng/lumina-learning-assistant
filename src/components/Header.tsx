@@ -5,15 +5,25 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { getAvatarUrl } from '@/utils/avatarGenerator';
 
 const Header: React.FC = () => {
   const { user, profile, logout } = useAuth();
+  const [searchParams] = useSearchParams();
+  const currentTab = searchParams.get('tab') || 'dashboard';
   
   // Get the avatar URL (either uploaded or auto-generated study-themed)
   const avatarUrl = getAvatarUrl(profile, 32);
   const userName = profile?.full_name || 'Study Buddy';
+
+  // Helper function to get the correct link path
+  const getTabLink = (tab: string) => {
+    if (currentTab === tab) {
+      return '#'; // Don't navigate if already on the tab
+    }
+    return tab === 'dashboard' ? '/' : `/?tab=${tab}`;
+  };
 
   return (
     <header className="w-full py-4 px-6 flex items-center justify-between bg-background/80 backdrop-blur-md sticky top-0 z-10 border-b">
@@ -57,13 +67,13 @@ const Header: React.FC = () => {
             )}
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link to="/?tab=profile" className="flex items-center">
+              <Link to={getTabLink('profile')} className="flex items-center">
                 <User className="mr-2 h-4 w-4" />
                 <span>Profile</span>
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link to="/?tab=settings" className="flex items-center">
+              <Link to={getTabLink('settings')} className="flex items-center">
                 <Settings className="mr-2 h-4 w-4" />
                 <span>Settings</span>
               </Link>
