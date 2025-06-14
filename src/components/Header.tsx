@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Bell, Calendar, LogOut, Settings, User } from 'lucide-react';
 import { Button } from "@/components/ui/button";
@@ -19,16 +18,16 @@ const Header: React.FC = () => {
   const userName = profile?.full_name || 'Study Buddy';
 
   // Helper function to handle tab navigation
-  const handleTabNavigation = (tab: string, event: React.MouseEvent) => {
+  const handleTabNavigation = (tab: string) => {
+    // Prevent navigation if already on the tab
     if (currentTab === tab) {
-      event.preventDefault();
       return;
     }
     
     if (tab === 'dashboard') {
-      navigate('/');
+      navigate('/', { replace: true });
     } else {
-      navigate(`/?tab=${tab}`);
+      navigate(`/?tab=${tab}`, { replace: true });
     }
   };
 
@@ -73,11 +72,17 @@ const Header: React.FC = () => {
               </div>
             )}
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={(e) => handleTabNavigation('profile', e)}>
+            <DropdownMenuItem 
+              onClick={() => handleTabNavigation('profile')}
+              className={currentTab === 'profile' ? 'bg-accent' : ''}
+            >
               <User className="mr-2 h-4 w-4" />
               <span>Profile</span>
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={(e) => handleTabNavigation('settings', e)}>
+            <DropdownMenuItem 
+              onClick={() => handleTabNavigation('settings')}
+              className={currentTab === 'settings' ? 'bg-accent' : ''}
+            >
               <Settings className="mr-2 h-4 w-4" />
               <span>Settings</span>
             </DropdownMenuItem>
