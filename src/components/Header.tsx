@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Bell, Calendar, LogOut, Settings, User } from 'lucide-react';
 import { Button } from "@/components/ui/button";
@@ -19,10 +20,13 @@ const Header: React.FC = () => {
 
   // Helper function to handle tab navigation
   const handleTabNavigation = (tab: string) => {
-    // Prevent navigation if already on the tab
+    // Completely prevent any action if already on the tab
     if (currentTab === tab) {
+      console.log(`Already on ${tab} tab, skipping navigation`);
       return;
     }
+    
+    console.log(`Navigating from ${currentTab} to ${tab}`);
     
     if (tab === 'dashboard') {
       navigate('/', { replace: true });
@@ -73,15 +77,25 @@ const Header: React.FC = () => {
             )}
             <DropdownMenuSeparator />
             <DropdownMenuItem 
-              onClick={() => handleTabNavigation('profile')}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleTabNavigation('profile');
+              }}
               className={currentTab === 'profile' ? 'bg-accent' : ''}
+              disabled={currentTab === 'profile'}
             >
               <User className="mr-2 h-4 w-4" />
               <span>Profile</span>
             </DropdownMenuItem>
             <DropdownMenuItem 
-              onClick={() => handleTabNavigation('settings')}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleTabNavigation('settings');
+              }}
               className={currentTab === 'settings' ? 'bg-accent' : ''}
+              disabled={currentTab === 'settings'}
             >
               <Settings className="mr-2 h-4 w-4" />
               <span>Settings</span>
