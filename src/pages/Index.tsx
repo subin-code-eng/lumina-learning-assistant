@@ -20,8 +20,16 @@ import { useAuth } from '@/contexts/AuthContext';
 
 const Index = () => {
   const { user, profile } = useAuth();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || "dashboard";
+
+  const handleTabChange = (value: string) => {
+    if (value === "dashboard") {
+      setSearchParams({});
+    } else {
+      setSearchParams({ tab: value });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted/50">
@@ -38,7 +46,7 @@ const Index = () => {
         
         {/* Main Tabs Navigation */}
         <div className="mb-8">
-          <Tabs value={activeTab}>
+          <Tabs value={activeTab} onValueChange={handleTabChange}>
             <TabsList className="grid w-full grid-cols-3 md:grid-cols-7 lg:w-auto lg:inline-grid">
               <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
               <TabsTrigger value="study">Study Planner</TabsTrigger>
