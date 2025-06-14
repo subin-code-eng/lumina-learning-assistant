@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { Bell, Calendar, LogOut, Settings, User, Plus, BookOpen, Clock, Trophy } from 'lucide-react';
+import { Bell, Calendar, LogOut, Settings, User, BookOpen, Clock, Trophy } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -10,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Link, useSearchParams } from 'react-router-dom';
 import { getAvatarUrl } from '@/utils/avatarGenerator';
 import { toast } from 'sonner';
+import QuickScheduleDialog from './QuickScheduleDialog';
 
 const Header: React.FC = () => {
   const { user, profile, logout } = useAuth();
@@ -68,9 +68,9 @@ const Header: React.FC = () => {
     }
   ];
 
-  const handleQuickSchedule = () => {
-    toast.success('Quick study session scheduled!', {
-      description: 'Added 1-hour session for today at 3:00 PM',
+  const handleScheduleSuccess = () => {
+    toast.success('Session added to calendar!', {
+      description: 'Your study session has been successfully scheduled',
       duration: 3000,
     });
   };
@@ -160,14 +160,10 @@ const Header: React.FC = () => {
                   )}
                 </div>
               </div>
-              <Button 
-                onClick={handleQuickSchedule}
-                className="w-full" 
-                size="sm"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Quick Schedule
-              </Button>
+              <QuickScheduleDialog 
+                selectedDate={selectedDate} 
+                onScheduleSuccess={handleScheduleSuccess}
+              />
             </div>
           </PopoverContent>
         </Popover>
