@@ -5,24 +5,31 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { getAvatarUrl } from '@/utils/avatarGenerator';
 
 const Header: React.FC = () => {
   const { user, profile, logout } = useAuth();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const currentTab = searchParams.get('tab') || 'dashboard';
   
   // Get the avatar URL (either uploaded or auto-generated study-themed)
   const avatarUrl = getAvatarUrl(profile, 32);
   const userName = profile?.full_name || 'Study Buddy';
 
-  // Helper function to get the correct link path
-  const getTabLink = (tab: string) => {
+  // Helper function to handle tab navigation
+  const handleTabNavigation = (tab: string, event: React.MouseEvent) => {
     if (currentTab === tab) {
-      return '#'; // Don't navigate if already on the tab
+      event.preventDefault();
+      return;
     }
-    return tab === 'dashboard' ? '/' : `/?tab=${tab}`;
+    
+    if (tab === 'dashboard') {
+      navigate('/');
+    } else {
+      navigate(`/?tab=${tab}`);
+    }
   };
 
   return (
@@ -66,17 +73,13 @@ const Header: React.FC = () => {
               </div>
             )}
             <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link to={getTabLink('profile')} className="flex items-center">
-                <User className="mr-2 h-4 w-4" />
-                <span>Profile</span>
-              </Link>
+            <DropdownMenuItem onClick={(e) => handleTabNavigation('profile', e)}>
+              <User className="mr-2 h-4 w-4" />
+              <span>Profile</span>
             </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link to={getTabLink('settings')} className="flex items-center">
-                <Settings className="mr-2 h-4 w-4" />
-                <span>Settings</span>
-              </Link>
+            <DropdownMenuItem onClick={(e) => handleTabNavigation('settings', e)}>
+              <Settings className="mr-2 h-4 w-4" />
+              <span>Settings</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => logout()}>
