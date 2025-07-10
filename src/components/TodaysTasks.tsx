@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar, Clock, Plus } from 'lucide-react';
@@ -26,14 +26,15 @@ interface Task {
   subject: string;
 }
 
-const TodaysTasks: React.FC = () => {
-  const { toast } = useToast();
-  const [showForm, setShowForm] = useState(false);
-  const [tasks, setTasks] = useState<Task[]>([
+// Custom hook for task persistence
+const usePersistentTasks = () => {
+  const [tasks, setTasks] = useState<Task[]>([]);
+
+  const defaultTasks: Task[] = [
     { 
       id: '1', 
       title: 'Review Organic Chemistry Notes', 
-      completed: true, 
+      completed: false, 
       time: '09:00 - 10:30 AM',
       subject: 'Chemistry'
     },
@@ -58,7 +59,48 @@ const TodaysTasks: React.FC = () => {
       time: '04:00 - 05:30 PM',
       subject: 'Physics'
     },
-  ]);
+  ];
+
+  // Load tasks from localStorage on component mount
+  useEffect(() => {
+    const savedTasks = localStorage.getItem('studyTasks');
+    if (savedTasks) {
+      try {
+        const parsedTasks = JSON.parse(savedTasks);
+        setTasks(parsedTasks);
+      } catch (error) {
+        console.error('Error parsing saved tasks:', error);
+        setTasks(defaultTasks);
+      }
+    } else {
+      setTasks(defaultTasks);
+    }
+  }, []);
+
+  // Save tasks to localStorage whenever tasks change
+  useEffect(() => {
+    if (tasks.length > 0) {
+      localStorage.setItem('studyTasks', JSON.stringify(tasks));
+      
+      // Dispatch custom event for gamification system
+      const completedTasks = tasks.filter(task => task.completed);
+      window.dispatchEvent(new CustomEvent('tasksUpdated', { 
+        detail: { 
+          totalTasks: tasks.length, 
+          completedTasks: completedTasks.length,
+          tasks: tasks
+        } 
+      }));
+    }
+  }, [tasks]);
+
+  return [tasks, setTasks] as const;
+};
+
+const TodaysTasks: React.FC = () => {
+  const { toast } = useToast();
+  const [showForm, setShowForm] = useState(false);
+  const [tasks, setTasks] = usePersistentTasks();
 
   const form = useForm<z.infer<typeof addTaskSchema>>({
     resolver: zodResolver(addTaskSchema),
@@ -70,9 +112,21 @@ const TodaysTasks: React.FC = () => {
   });
 
   const toggleTaskCompletion = (taskId: string) => {
-    setTasks(tasks.map(task => 
-      task.id === taskId ? { ...task, completed: !task.completed } : task
-    ));
+    setTasks(prevTasks => {
+      const updatedTasks = prevTasks.map(task => 
+        task.id === taskId ? { ...task, completed: !task.completed } : task
+      );
+      
+      const toggledTask = updatedTasks.find(task => task.id === taskId);
+      if (toggledTask?.completed) {
+        toast({
+          title: "Task completed!",
+          description: `Great job completing "${toggledTask.title}"!`,
+        });
+      }
+      
+      return updatedTasks;
+    });
   };
 
   const onSubmit = (data: z.infer<typeof addTaskSchema>) => {
@@ -89,7 +143,7 @@ const TodaysTasks: React.FC = () => {
     };
     
     // Add the new task to the list
-    setTasks([...tasks, newTask]);
+    setTasks(prevTasks => [...prevTasks, newTask]);
     
     // Reset the form and hide it
     form.reset();
@@ -222,7 +276,7 @@ const TodaysTasks: React.FC = () => {
             </div>
           ))}
           
-          {tasks.filter(t => !t.completed).length === 0 && (
+          {tasks.filter(t => !t.completed).length === 0 && tasks.length > 0 && (
             <div className="text-center py-6">
               <p className="text-muted-foreground">All tasks completed! Great job! 🎉</p>
             </div>
