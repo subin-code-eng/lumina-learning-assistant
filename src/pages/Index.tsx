@@ -15,7 +15,6 @@ import QuizGenerator from '@/components/QuizGenerator';
 import Profile from '@/components/Profile';
 import Settings from '@/components/Settings';
 import RefreshmentBreak from '@/components/RefreshmentBreak';
-import SubjectManager from '@/components/SubjectManager';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -83,16 +82,11 @@ const Index = () => {
             
             <TabsContent value="study" className="mt-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Subject Manager */}
-                <SubjectManager />
-                
                 {/* AI Study Plan Creator */}
                 <StudyPlanCreator />
                 
                 {/* Upcoming Exams */}
-                <div className="md:col-span-2">
-                  <UpcomingExams />
-                </div>
+                <UpcomingExams />
               </div>
             </TabsContent>
             
