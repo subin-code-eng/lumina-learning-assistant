@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -70,13 +69,9 @@ const QuizGenerator: React.FC = () => {
 
     setLoading(true);
     try {
-      // Generate unique questions using AI
-      const timestamp = Date.now();
       const { data, error } = await supabase.functions.invoke('ai-tutor', {
         body: {
           query: `Generate exactly ${questionCount} unique multiple-choice questions about ${subject} at ${difficulty} level. 
-          
-          Important: Make these questions different from any previous quiz by including this unique identifier: ${timestamp}
           
           Format each question as:
           Q1: [Question text]
@@ -87,7 +82,7 @@ const QuizGenerator: React.FC = () => {
           Correct: [Letter]
           Explanation: [Brief explanation of the correct answer]
           
-          Make sure questions test practical understanding, not just memorization. Include varied question types: conceptual, application-based, and analytical.`,
+          Make sure questions test practical understanding, not just memorization. Include varied question types: conceptual, application-based, and analytical. Do not include any numbers, timestamps, or identifiers in parentheses at the end of questions.`,
           userPreferences: {
             learningStyle: 'reading/writing',
             difficulty: difficulty,
@@ -150,6 +145,11 @@ const QuizGenerator: React.FC = () => {
     }
   };
 
+  const cleanQuestionText = (text: string): string => {
+    // Remove any numbers in parentheses at the end of the question
+    return text.replace(/\s*\(\d+\)\s*$/, '').trim();
+  };
+
   const parseQuestions = (response: string): Question[] => {
     const questionBlocks = response.split(/Q\d+:/).filter(block => block.trim());
     const parsedQuestions: Question[] = [];
@@ -159,7 +159,7 @@ const QuizGenerator: React.FC = () => {
         const lines = block.trim().split('\n').filter(line => line.trim());
         if (lines.length < 6) return;
 
-        const questionText = lines[0].trim();
+        const questionText = cleanQuestionText(lines[0].trim());
         const options: string[] = [];
         let correctAnswer = 0;
         let explanation = '';
