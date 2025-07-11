@@ -31,7 +31,7 @@ const achievementDefinitions = [
     description: 'Complete 50 study sessions in a single subject',
     icon: <Award className="h-5 w-5 text-primary" />,
     xpReward: 200,
-    checkFunction: (data: any) => Math.max(...Object.values(data.subjectCounts as number[])) >= 50,
+    checkFunction: (data: any) => Math.max(...Object.values(data.subjectCounts as number[]), 0) >= 50,
   },
   {
     id: 4,
@@ -217,6 +217,8 @@ const Gamification: React.FC = () => {
     const handleTasksUpdated = (event: CustomEvent) => {
       const { completedTasks, tasks } = event.detail;
       
+      console.log('Tasks updated event received:', { completedTasks, tasks });
+      
       // Update user stats based on completed tasks
       setUserStats(prev => {
         const newStats = { ...prev, completedTasks };
@@ -246,47 +248,23 @@ const Gamification: React.FC = () => {
     };
   }, [setUserStats]);
 
-  // Check for newly completed achievements
-  useEffect(() => {
-    achievementDefinitions.forEach(achievement => {
-      if (!completedAchievements.includes(achievement.id) && achievement.checkFunction(userStats)) {
-        setCompletedAchievements(prev => [...prev, achievement.id]);
-        addXP(achievement.xpReward);
-        toast({
-          title: "Achievement Unlocked!",
-          description: `${achievement.name} - +${achievement.xpReward} XP!`,
-        });
-      }
-    });
-  }, [userStats, completedAchievements, setCompletedAchievements]);
-
-  // Check for newly completed daily challenges
-  useEffect(() => {
-    dailyChallenges.forEach(challenge => {
-      if (!completedChallenges.includes(challenge.id) && challenge.checkFunction(userStats)) {
-        setCompletedChallenges(prev => [...prev, challenge.id]);
-        addXP(challenge.xpReward);
-        toast({
-          title: "Daily Challenge Completed!",
-          description: `${challenge.name} - +${challenge.xpReward} XP!`,
-        });
-      }
-    });
-  }, [userStats, completedChallenges, setCompletedChallenges]);
-
+  // Function to add XP and handle level progression
   const addXP = (xp: number) => {
-    console.log(`Adding ${xp} XP to current level:`, currentLevel);
+    console.log(`Adding ${xp} XP. Current level:`, currentLevel);
     
     setCurrentLevel(prev => {
       const newXP = prev.currentXP + xp;
       let newLevel = prev.level;
-      let newNextLevelXP = prev.nextLevelXP;
-
-      // Check for level up
-      while (newLevel < levelThresholds.length - 1 && newXP >= levelThresholds[newLevel]) {
-        newLevel++;
-        newNextLevelXP = levelThresholds[newLevel] || newNextLevelXP;
+      
+      // Find the correct level based on total XP
+      for (let i = levelThresholds.length - 1; i >= 0; i--) {
+        if (newXP >= levelThresholds[i]) {
+          newLevel = i + 1;
+          break;
+        }
       }
+      
+      const nextLevelXP = levelThresholds[newLevel] || levelThresholds[levelThresholds.length - 1];
 
       if (newLevel > prev.level) {
         setShowCelebration(true);
@@ -304,13 +282,47 @@ const Gamification: React.FC = () => {
         level: newLevel,
         title: levelTitles[newLevel-1] || 'Master Scholar',
         currentXP: newXP,
-        nextLevelXP: newNextLevelXP,
+        nextLevelXP: nextLevelXP,
       };
 
       console.log('New level data:', newLevelData);
       return newLevelData;
     });
   };
+
+  // Check for newly completed achievements
+  useEffect(() => {
+    console.log('Checking achievements with stats:', userStats);
+    
+    achievementDefinitions.forEach(achievement => {
+      if (!completedAchievements.includes(achievement.id) && achievement.checkFunction(userStats)) {
+        console.log(`Achievement unlocked: ${achievement.name}`);
+        setCompletedAchievements(prev => [...prev, achievement.id]);
+        addXP(achievement.xpReward);
+        toast({
+          title: "Achievement Unlocked!",
+          description: `${achievement.name} - +${achievement.xpReward} XP!`,
+        });
+      }
+    });
+  }, [userStats, completedAchievements, setCompletedAchievements]);
+
+  // Check for newly completed daily challenges
+  useEffect(() => {
+    console.log('Checking daily challenges with stats:', userStats);
+    
+    dailyChallenges.forEach(challenge => {
+      if (!completedChallenges.includes(challenge.id) && challenge.checkFunction(userStats)) {
+        console.log(`Daily challenge completed: ${challenge.name}`);
+        setCompletedChallenges(prev => [...prev, challenge.id]);
+        addXP(challenge.xpReward);
+        toast({
+          title: "Daily Challenge Completed!",
+          description: `${challenge.name} - +${challenge.xpReward} XP!`,
+        });
+      }
+    });
+  }, [userStats, completedChallenges, setCompletedChallenges]);
 
   const completeChallengeManualy = (challengeId: number, xp: number) => {
     const challenge = dailyChallenges.find(c => c.id === challengeId);
@@ -326,6 +338,8 @@ const Gamification: React.FC = () => {
       return;
     }
     
+    console.log(`Manually completing challenge: ${challenge.name}, XP: ${xp}`);
+    
     toast({
       title: "Challenge completed!",
       description: `You earned ${xp} XP!`,
@@ -335,7 +349,18 @@ const Gamification: React.FC = () => {
     setCompletedChallenges(prev => [...prev, challengeId]);
   };
 
-  const xpProgress = currentLevel.nextLevelXP > 0 ? (currentLevel.currentXP / currentLevel.nextLevelXP) * 100 : 100;
+  // Calculate XP progress for current level
+  const getCurrentLevelXP = () => {
+    const currentLevelMin = levelThresholds[currentLevel.level - 1] || 0;
+    const nextLevelMin = levelThresholds[currentLevel.level] || levelThresholds[levelThresholds.length - 1];
+    return {
+      current: currentLevel.currentXP - currentLevelMin,
+      total: nextLevelMin - currentLevelMin,
+      percentage: nextLevelMin > currentLevelMin ? ((currentLevel.currentXP - currentLevelMin) / (nextLevelMin - currentLevelMin)) * 100 : 100
+    };
+  };
+
+  const levelProgress = getCurrentLevelXP();
 
   // Generate achievements with current progress
   const achievements = achievementDefinitions.map(def => {
@@ -429,16 +454,16 @@ const Gamification: React.FC = () => {
               <div>
                 <h3 className="font-medium">Level {currentLevel.level}: {currentLevel.title}</h3>
                 <p className="text-sm text-muted-foreground">
-                  {currentLevel.currentXP} / {currentLevel.nextLevelXP} XP
+                  {currentLevel.currentXP} Total XP | {levelProgress.current} / {levelProgress.total} XP to next level
                 </p>
               </div>
               <div className={`rounded-full bg-primary/10 p-3 ${showCelebration ? 'ring-2 ring-primary ring-offset-2 animate-bounce' : ''}`}>
                 <span className="text-xl font-bold text-primary">{currentLevel.level}</span>
               </div>
             </div>
-            <Progress value={xpProgress} className="h-2" />
+            <Progress value={levelProgress.percentage} className="h-2" />
             <p className="text-xs text-muted-foreground mt-1">
-              {Math.round(currentLevel.nextLevelXP - currentLevel.currentXP)} XP until next level
+              {Math.max(0, levelProgress.total - levelProgress.current)} XP until next level
             </p>
           </div>
 
