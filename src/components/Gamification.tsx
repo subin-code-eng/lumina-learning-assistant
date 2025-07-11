@@ -250,28 +250,34 @@ const Gamification: React.FC = () => {
 
   // Function to add XP and handle level progression
   const addXP = (xp: number) => {
-    console.log(`Adding ${xp} XP. Current level:`, currentLevel);
+    console.log(`Adding ${xp} XP. Current level before:`, currentLevel);
     
     setCurrentLevel(prev => {
-      const newXP = prev.currentXP + xp;
-      let newLevel = prev.level;
+      const newTotalXP = prev.currentXP + xp;
+      console.log(`New total XP: ${newTotalXP}`);
       
       // Find the correct level based on total XP
+      let newLevel = 1;
       for (let i = levelThresholds.length - 1; i >= 0; i--) {
-        if (newXP >= levelThresholds[i]) {
+        if (newTotalXP >= levelThresholds[i]) {
           newLevel = i + 1;
           break;
         }
       }
       
+      // Calculate next level XP threshold
       const nextLevelXP = levelThresholds[newLevel] || levelThresholds[levelThresholds.length - 1];
 
+      console.log(`Calculated level: ${newLevel}, Next level XP threshold: ${nextLevelXP}`);
+
+      // Check if we leveled up
       if (newLevel > prev.level) {
+        console.log(`LEVEL UP! From ${prev.level} to ${newLevel}`);
         setShowCelebration(true);
         setTimeout(() => setShowCelebration(false), 3000);
         
         toast({
-          title: "Level Up!",
+          title: "🎉 Level Up!",
           description: `Congratulations! You've reached Level ${newLevel}: ${levelTitles[newLevel-1]}`,
           variant: "default",
           className: "border-primary",
@@ -281,7 +287,7 @@ const Gamification: React.FC = () => {
       const newLevelData = {
         level: newLevel,
         title: levelTitles[newLevel-1] || 'Master Scholar',
-        currentXP: newXP,
+        currentXP: newTotalXP,
         nextLevelXP: nextLevelXP,
       };
 
@@ -300,7 +306,7 @@ const Gamification: React.FC = () => {
         setCompletedAchievements(prev => [...prev, achievement.id]);
         addXP(achievement.xpReward);
         toast({
-          title: "Achievement Unlocked!",
+          title: "🏆 Achievement Unlocked!",
           description: `${achievement.name} - +${achievement.xpReward} XP!`,
         });
       }
@@ -317,7 +323,7 @@ const Gamification: React.FC = () => {
         setCompletedChallenges(prev => [...prev, challenge.id]);
         addXP(challenge.xpReward);
         toast({
-          title: "Daily Challenge Completed!",
+          title: "✅ Daily Challenge Completed!",
           description: `${challenge.name} - +${challenge.xpReward} XP!`,
         });
       }
@@ -328,20 +334,10 @@ const Gamification: React.FC = () => {
     const challenge = dailyChallenges.find(c => c.id === challengeId);
     if (!challenge || completedChallenges.includes(challengeId)) return;
     
-    // Check if the challenge condition is actually met
-    if (!challenge.checkFunction(userStats)) {
-      toast({
-        title: "Challenge not ready!",
-        description: "You haven't met the requirements for this challenge yet.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
     console.log(`Manually completing challenge: ${challenge.name}, XP: ${xp}`);
     
     toast({
-      title: "Challenge completed!",
+      title: "🎯 Challenge Completed!",
       description: `You earned ${xp} XP!`,
     });
     
@@ -353,10 +349,13 @@ const Gamification: React.FC = () => {
   const getCurrentLevelXP = () => {
     const currentLevelMin = levelThresholds[currentLevel.level - 1] || 0;
     const nextLevelMin = levelThresholds[currentLevel.level] || levelThresholds[levelThresholds.length - 1];
+    const currentLevelProgress = currentLevel.currentXP - currentLevelMin;
+    const totalLevelXP = nextLevelMin - currentLevelMin;
+    
     return {
-      current: currentLevel.currentXP - currentLevelMin,
-      total: nextLevelMin - currentLevelMin,
-      percentage: nextLevelMin > currentLevelMin ? ((currentLevel.currentXP - currentLevelMin) / (nextLevelMin - currentLevelMin)) * 100 : 100
+      current: Math.max(0, currentLevelProgress),
+      total: Math.max(1, totalLevelXP),
+      percentage: totalLevelXP > 0 ? Math.min(100, (currentLevelProgress / totalLevelXP) * 100) : 100
     };
   };
 
@@ -534,7 +533,7 @@ const Gamification: React.FC = () => {
                       {challenge.canComplete ? `Claim +${challenge.xpReward} XP` : `+${challenge.xpReward} XP`}
                     </Button>
                   ) : (
-                    <Badge variant="secondary">Completed</Badge>
+                    <Badge variant="secondary">✅ Completed</Badge>
                   )}
                 </div>
               ))}
