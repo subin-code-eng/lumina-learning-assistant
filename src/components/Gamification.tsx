@@ -43,7 +43,7 @@ const achievementDefinitions = [
   },
   {
     id: 5,
-    name: 'Study Marathon',
+    name: 'Study Marathon',  
     description: 'Study for more than 3 hours in one session',
     icon: <Sparkles className="h-5 w-5 text-purple-500" />,
     xpReward: 150,
@@ -109,6 +109,25 @@ const useGamificationData = () => {
 
   const [completedAchievements, setCompletedAchievements] = useState<number[]>([]);
   const [completedChallenges, setCompletedChallenges] = useState<number[]>([]);
+
+  // Reset daily challenges at midnight
+  useEffect(() => {
+    const checkDateReset = () => {
+      const lastResetDate = localStorage.getItem('lastChallengeReset');
+      const today = new Date().toDateString();
+      
+      if (lastResetDate !== today) {
+        setCompletedChallenges([]);
+        localStorage.setItem('lastChallengeReset', today);
+        localStorage.removeItem('completedChallenges');
+      }
+    };
+
+    checkDateReset();
+    const interval = setInterval(checkDateReset, 60000); // Check every minute
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Load data from localStorage
   useEffect(() => {
@@ -211,6 +230,11 @@ const Gamification: React.FC = () => {
         });
         newStats.subjectCounts = subjectCounts;
 
+        // Update focus time based on completed tasks (simulate study time)
+        newStats.focusTime = completedTasks * 30; // 30 minutes per completed task
+
+        console.log('Updated user stats:', newStats);
+
         return newStats;
       });
     };
@@ -236,7 +260,23 @@ const Gamification: React.FC = () => {
     });
   }, [userStats, completedAchievements, setCompletedAchievements]);
 
+  // Check for newly completed daily challenges
+  useEffect(() => {
+    dailyChallenges.forEach(challenge => {
+      if (!completedChallenges.includes(challenge.id) && challenge.checkFunction(userStats)) {
+        setCompletedChallenges(prev => [...prev, challenge.id]);
+        addXP(challenge.xpReward);
+        toast({
+          title: "Daily Challenge Completed!",
+          description: `${challenge.name} - +${challenge.xpReward} XP!`,
+        });
+      }
+    });
+  }, [userStats, completedChallenges, setCompletedChallenges]);
+
   const addXP = (xp: number) => {
+    console.log(`Adding ${xp} XP to current level:`, currentLevel);
+    
     setCurrentLevel(prev => {
       const newXP = prev.currentXP + xp;
       let newLevel = prev.level;
@@ -260,17 +300,31 @@ const Gamification: React.FC = () => {
         });
       }
 
-      return {
+      const newLevelData = {
         level: newLevel,
         title: levelTitles[newLevel-1] || 'Master Scholar',
         currentXP: newXP,
         nextLevelXP: newNextLevelXP,
       };
+
+      console.log('New level data:', newLevelData);
+      return newLevelData;
     });
   };
 
-  const completeChallenge = (challengeId: number, xp: number) => {
-    if (completedChallenges.includes(challengeId)) return;
+  const completeChallengeManualy = (challengeId: number, xp: number) => {
+    const challenge = dailyChallenges.find(c => c.id === challengeId);
+    if (!challenge || completedChallenges.includes(challengeId)) return;
+    
+    // Check if the challenge condition is actually met
+    if (!challenge.checkFunction(userStats)) {
+      toast({
+        title: "Challenge not ready!",
+        description: "You haven't met the requirements for this challenge yet.",
+        variant: "destructive",
+      });
+      return;
+    }
     
     toast({
       title: "Challenge completed!",
@@ -323,12 +377,38 @@ const Gamification: React.FC = () => {
     };
   });
 
-  // Generate daily challenges with completion status
+  // Generate daily challenges with completion status and progress
   const activeChallenges = dailyChallenges.map(challenge => {
     const isCompleted = completedChallenges.includes(challenge.id);
+    const canComplete = challenge.checkFunction(userStats);
+    
+    let progress = 0;
+    let total = 1;
+    
+    // Calculate progress for incomplete challenges
+    if (!isCompleted) {
+      switch (challenge.id) {
+        case 1: // Complete 2 study tasks
+          progress = userStats.completedTasks;
+          total = 2;
+          break;
+        case 2: // Study for 1 hour straight
+          progress = userStats.focusTime;
+          total = 60;
+          break;
+        case 3: // Create 1 set of flashcards
+          progress = userStats.flashcardsCreated;
+          total = 1;
+          break;
+      }
+    }
+    
     return {
       ...challenge,
       completed: isCompleted,
+      canComplete,
+      progress,
+      total,
     };
   });
 
@@ -362,6 +442,29 @@ const Gamification: React.FC = () => {
             </p>
           </div>
 
+          {/* User Stats Display */}
+          <div className="mb-6 p-4 bg-muted/30 rounded-lg">
+            <h3 className="font-medium mb-2">Current Stats</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div>
+                <span className="text-muted-foreground">Tasks Completed:</span>
+                <span className="ml-2 font-medium">{userStats.completedTasks}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Focus Time:</span>
+                <span className="ml-2 font-medium">{userStats.focusTime} min</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Flashcards:</span>
+                <span className="ml-2 font-medium">{userStats.flashcardsCreated}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Streak:</span>
+                <span className="ml-2 font-medium">{userStats.streakDays} days</span>
+              </div>
+            </div>
+          </div>
+
           {/* Daily Challenges */}
           <div className="mb-6">
             <h3 className="font-medium mb-3">Daily Challenges</h3>
@@ -373,22 +476,37 @@ const Gamification: React.FC = () => {
                     challenge.completed ? 'bg-primary/5 border-primary/20' : 'bg-muted/50'
                   }`}
                 >
-                  <div className="flex items-center">
-                    <BookOpen className={`h-5 w-5 mr-3 ${
-                      challenge.completed ? 'text-primary' : 'text-muted-foreground'
-                    }`} />
-                    <span className={challenge.completed ? 'line-through' : ''}>
-                      {challenge.name}
-                    </span>
+                  <div className="flex-1">
+                    <div className="flex items-center">
+                      <BookOpen className={`h-5 w-5 mr-3 ${
+                        challenge.completed ? 'text-primary' : 'text-muted-foreground'
+                      }`} />
+                      <span className={challenge.completed ? 'line-through' : ''}>
+                        {challenge.name}
+                      </span>
+                    </div>
+                    
+                    {!challenge.completed && challenge.total > 1 && (
+                      <div className="mt-2 ml-8">
+                        <Progress 
+                          value={(Math.min(challenge.progress, challenge.total) / challenge.total) * 100} 
+                          className="h-1.5" 
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {Math.min(challenge.progress, challenge.total)} / {challenge.total} completed
+                        </p>
+                      </div>
+                    )}
                   </div>
                   
                   {!challenge.completed ? (
                     <Button 
                       size="sm" 
-                      variant="outline"
-                      onClick={() => completeChallenge(challenge.id, challenge.xpReward)}
+                      variant={challenge.canComplete ? "default" : "outline"}
+                      disabled={!challenge.canComplete}
+                      onClick={() => completeChallengeManualy(challenge.id, challenge.xpReward)}
                     >
-                      +{challenge.xpReward} XP
+                      {challenge.canComplete ? `Claim +${challenge.xpReward} XP` : `+${challenge.xpReward} XP`}
                     </Button>
                   ) : (
                     <Badge variant="secondary">Completed</Badge>
@@ -425,11 +543,11 @@ const Gamification: React.FC = () => {
                     {!achievement.completed && achievement.total > 1 ? (
                       <div className="mt-2">
                         <Progress 
-                          value={(achievement.progress / achievement.total) * 100} 
+                          value={(Math.min(achievement.progress, achievement.total) / achievement.total) * 100} 
                           className="h-1.5" 
                         />
                         <p className="text-xs text-muted-foreground mt-1">
-                          {achievement.progress} / {achievement.total} completed
+                          {Math.min(achievement.progress, achievement.total)} / {achievement.total} completed
                         </p>
                       </div>
                     ) : null}
