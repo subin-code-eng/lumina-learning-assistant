@@ -7,187 +7,20 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "12.2.3 (519615d)"
+    PostgrestVersion: "13.0.5"
   }
   public: {
     Tables: {
-      ai_conversations: {
-        Row: {
-          conversation_title: string
-          created_at: string
-          id: string
-          messages: Json
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          conversation_title: string
-          created_at?: string
-          id?: string
-          messages: Json
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          conversation_title?: string
-          created_at?: string
-          id?: string
-          messages?: Json
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      profiles: {
-        Row: {
-          avatar_url: string | null
-          created_at: string
-          full_name: string | null
-          id: string
-          updated_at: string
-        }
-        Insert: {
-          avatar_url?: string | null
-          created_at?: string
-          full_name?: string | null
-          id: string
-          updated_at?: string
-        }
-        Update: {
-          avatar_url?: string | null
-          created_at?: string
-          full_name?: string | null
-          id?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      study_plans: {
-        Row: {
-          ai_generated_plan: string | null
-          created_at: string
-          description: string | null
-          difficulty: string
-          duration_days: number
-          id: string
-          subject: string
-          title: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          ai_generated_plan?: string | null
-          created_at?: string
-          description?: string | null
-          difficulty: string
-          duration_days: number
-          id?: string
-          subject: string
-          title: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          ai_generated_plan?: string | null
-          created_at?: string
-          description?: string | null
-          difficulty?: string
-          duration_days?: number
-          id?: string
-          subject?: string
-          title?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      study_sessions: {
-        Row: {
-          completed: boolean | null
-          created_at: string
-          duration_minutes: number
-          id: string
-          notes: string | null
-          plan_id: string | null
-          scheduled_date: string | null
-          title: string
-          user_id: string
-        }
-        Insert: {
-          completed?: boolean | null
-          created_at?: string
-          duration_minutes: number
-          id?: string
-          notes?: string | null
-          plan_id?: string | null
-          scheduled_date?: string | null
-          title: string
-          user_id: string
-        }
-        Update: {
-          completed?: boolean | null
-          created_at?: string
-          duration_minutes?: number
-          id?: string
-          notes?: string | null
-          plan_id?: string | null
-          scheduled_date?: string | null
-          title?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "study_sessions_plan_id_fkey"
-            columns: ["plan_id"]
-            isOneToOne: false
-            referencedRelation: "study_plans"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      voice_notes: {
-        Row: {
-          content: string
-          created_at: string
-          id: string
-          title: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          content: string
-          created_at?: string
-          id?: string
-          title: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          content?: string
-          created_at?: string
-          id?: string
-          title?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      save_ai_conversation: {
-        Args: {
-          p_user_id: string
-          p_conversation_title: string
-          p_messages: Json
-        }
-        Returns: Json
-      }
+      [_ in never]: never
     }
     Enums: {
       [_ in never]: never
